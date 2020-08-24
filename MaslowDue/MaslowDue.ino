@@ -135,8 +135,14 @@ long compute_PID(struct PID_MOTION *axis_ptr)
         digitalWrite(axis_ptr->P_PWM, 1);
       else
         analogWrite(axis_ptr->P_PWM, (255-PWM_value));
+  #elseif DRIVER_TLE9201
+       digitalWrite(axis_ptr->DIRECTION, 1);       // spin Positive  !!!!!!!!!!!!!!!!
+      if(Motors_Disabled)
+        digitalWrite(axis_ptr->ENABLE, 1);
+      else
+        analogWrite(axis_ptr->P_PWM, (255-PWM_value));
   #else
-      analogWrite(axis_ptr->M_PWM, 0);       // spin Positive
+      analogWrite(axis_ptr->M_PWM, 0);         // spin Positive
       analogWrite(axis_ptr->P_PWM, PWM_value);
   #endif
   }
@@ -148,6 +154,12 @@ long compute_PID(struct PID_MOTION *axis_ptr)
         digitalWrite(axis_ptr->M_PWM, 1);
       else
       analogWrite(axis_ptr->M_PWM, (255-PWM_value));
+   #elif defined(DRIVER_TLE9201)
+      digitalWrite(axis_ptr->DIRECTION, 0);       // spin Negative !!!!!!!!!!!!!!!!!
+      if(Motors_Disabled)
+        digitalWrite(axis_ptr->ENABLE, 1);
+      else
+      analogWrite(axis_ptr->P_PWM, (255-PWM_value));
    #else
       analogWrite(axis_ptr->P_PWM, 0);       // spin Negative
       analogWrite(axis_ptr->M_PWM, PWM_value);
@@ -164,6 +176,10 @@ void motorsDisabled(void)
     digitalWrite(X_ENABLE, 0);  // disable the motor driver
     digitalWrite(Y_ENABLE, 0);  
     digitalWrite(Z_ENABLE, 0);
+  #elif defined(DRIVER_TLE9201)
+    digitalWrite(X_ENABLE, 1);  // disable the motor driver
+    digitalWrite(Y_ENABLE, 1);
+    digitalWrite(Z_ENABLE, 1);
   #endif
 //  DEBUG_COM_PORT.print("MOTORS OFF\n");
 }
@@ -176,6 +192,14 @@ void motorsEnabled(void)
     digitalWrite(Y_ENABLE, 1);
     digitalWrite(Z_ENABLE, 1);  
   #endif
+  
+  #ifdef DRIVER_TLE9201
+    // how to enable the motor
+    digitalWrite(X_ENABLE, 0);  // Enable the motor driver
+    digitalWrite(Y_ENABLE, 0);
+    digitalWrite(Z_ENABLE, 0);  
+  #endif
+  
 //  DEBUG_COM_PORT.print("MOTORS ON\n");
 }
 
@@ -353,62 +377,104 @@ void setup()
   
   pinMode(HeartBeatLED, OUTPUT);
   digitalWrite(HeartBeatLED, LOW);
-
+  
   pinMode(XP_PWM, OUTPUT);
-  pinMode(XM_PWM, OUTPUT);
   pinMode(Encoder_XA, INPUT_PULLUP);
   pinMode(Encoder_XB, INPUT_PULLUP);
   x_axis.P_PWM = XP_PWM;  // preload hardware abstraction
-  x_axis.M_PWM = XM_PWM;
+  
+  #ifdef DRIVER_TLE9201
+    pinMode(X_DIR, OUTPUT);
+    x_axis.DIRECTION = X_DIR;
+  #else
+    pinMode(XM_PWM, OUTPUT);
+    x_axis.M_PWM = XM_PWM;  // preload hardware abstraction
+  #endif
+ 
   #ifdef DRIVER_TLE5206
     digitalWrite(X_FAULT,1);    // setup fault lines..
     pinMode(X_FAULT,INPUT);
     analogWrite(XP_PWM,255);
     analogWrite(XM_PWM,255);
     x_axis.ENABLE = X_FAULT;
-  #else
-    analogWrite(XP_PWM, 0);
-    analogWrite(XM_PWM, 0);
-    pinMode(X_ENABLE, OUTPUT);
-    x_axis.ENABLE = X_ENABLE;
+  #else  
+    #ifdef DRIVER_TLE9201
+     analogWrite(XP_PWM,255);
+     digitalWrite(X_ENABLE,1);  // high is OFF
+     x_axis.ENABLE = X_ENABLE;  // !!!!!!!!!!!!1
+    #else
+      analogWrite(XP_PWM, 0);
+      analogWrite(XM_PWM, 0);
+      pinMode(X_ENABLE, OUTPUT);
+      x_axis.ENABLE = X_ENABLE;
+    #endif
   #endif
 
   pinMode(YP_PWM, OUTPUT);
-  pinMode(YM_PWM, OUTPUT);
   pinMode(Encoder_YA, INPUT_PULLUP);
   pinMode(Encoder_YB, INPUT_PULLUP);
   y_axis.P_PWM = YP_PWM;
-  y_axis.M_PWM = YM_PWM;
+  
+
+  #ifdef DRIVER_TLE9201
+    pinMode(Y_DIR, OUTPUT);
+    y_axis.DIRECTION = Y_DIR;
+  #else
+    pinMode(YM_PWM, OUTPUT);
+    y_axis.M_PWM = YM_PWM;
+  #endif
+  
   #ifdef DRIVER_TLE5206
     digitalWrite(Y_FAULT,1);
     pinMode(Y_FAULT,INPUT);
     analogWrite(YP_PWM,255);
     analogWrite(YM_PWM,255);
     y_axis.ENABLE = Y_FAULT;
+    
   #else
-    analogWrite(YP_PWM, 0);
-    analogWrite(YM_PWM, 0);
-    pinMode(Y_ENABLE, OUTPUT);
-    y_axis.ENABLE = Y_ENABLE;
+    #ifdef DRIVER_TLE9201
+     analogWrite(YP_PWM,255);
+     digitalWrite(Y_ENABLE,1); // high is off
+     y_axis.ENABLE = Y_ENABLE;  //!!!!!!!!!!!!!!!
+    #else
+     analogWrite(YP_PWM, 0);
+     analogWrite(YM_PWM, 0);
+     pinMode(Y_ENABLE, OUTPUT);
+     y_axis.ENABLE = Y_ENABLE;
+    #endif
   #endif
 
   pinMode(ZP_PWM, OUTPUT);
-  pinMode(ZM_PWM, OUTPUT);
   pinMode(Encoder_ZA, INPUT_PULLUP);
   pinMode(Encoder_ZB, INPUT_PULLUP);
   z_axis.P_PWM = ZP_PWM;
-  z_axis.M_PWM = ZM_PWM;
+
+  #ifdef DRIVER_TLE9201
+    pinMode(Z_DIR, OUTPUT);
+    z_axis.DIRECTION = Z_DIR;
+  #else
+    pinMode(ZM_PWM, OUTPUT);
+    z_axis.M_PWM = ZM_PWM;
+  #endif
+  
   #ifdef DRIVER_TLE5206
     digitalWrite(Z_FAULT,1);
     pinMode(Z_FAULT,INPUT);
     analogWrite(ZP_PWM,255);
     analogWrite(ZM_PWM,255);
     z_axis.ENABLE = Z_FAULT;
+    
   #else
-    analogWrite(ZP_PWM, 0);
-    analogWrite(ZM_PWM, 0);
-    pinMode(Z_ENABLE, OUTPUT);
-    z_axis.ENABLE = Z_ENABLE;
+    #ifdef DRIVER_TLE9201
+     analogWrite(ZP_PWM,255);
+     digitalWrite(Z_ENABLE,1);  // high is off
+     z_axis.ENABLE = Z_ENABLE; //!!!!!!!!!!!!!!!
+    #else
+     analogWrite(ZP_PWM, 0);
+     analogWrite(ZM_PWM, 0);
+     pinMode(Z_ENABLE, OUTPUT);
+     z_axis.ENABLE = Z_ENABLE;
+    #endif
   #endif
 
   pinMode(Spindle_PWM, OUTPUT);

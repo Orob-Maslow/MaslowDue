@@ -26,12 +26,13 @@
 // -- SHIELD SELECTION
 //
 
-//#define MakerMadeCNC_V2   /* Uncomment for V2 MakerMade CNC (1.0) Shield */
-#define MakerMadeCNC_V1   /* Uncomment for V1 MakerMade CNC (1.0) Shield */
+//#define MakerMadeCNC_V2    /* Uncomment for V2 MakerMade CNC (1.0) Shield */
+//#define MakerMadeCNC_V1    /* Uncomment for V1 MakerMade CNC (1.0) Shield */
 //#define DRIVER_L298P_12    /* Uncomment this for a L298P version 1.2 Shield */
 //#define DRIVER_L298P_11    /* Uncomment this for a L298P version 1.1 Shield */
 //#define DRIVER_L298P_10    /* Uncomment this for a L298P version 1.0 Shield */
-//#define DRIVER_TLE5206       /* Uncomment this for a TLE5206 version Shield */
+//#define DRIVER_TLE5206     /* Uncomment this for a TLE5206 version Shield */
+#define DRIVER_TLE9201     /* Uncomment this for a TLE9201 version Shield */
 
 // uncomment this to work on PID settings and such using a terminal window
 //#define TUNING_MODE 1
@@ -123,9 +124,27 @@
   #define X_FAULT 12   /* 12 this is NOT an ENA output, this is a fault-line input */
 #endif
 
-#define SCLpin  15    /* EEPROM i2c signals */
-#define SDApin  14
+#ifdef DRIVER_TLE9201
+  #define YP_PWM 6      /* Y-axis PWM output */
+  #define Y_DIR 4      /* Y-axis direction */
+  #define Y_ENABLE 5   /* 5 this is ENA output */
 
+  #define ZP_PWM 9      /* Z-axis PWM output */
+  #define Z_DIR 7      /* Z-axis direction */
+  #define Z_ENABLE 8   /* 8 this is ENB output, this is a fault-line input */
+
+  #define XP_PWM 10     /* X-axis PWM output */
+  #define X_DIR 11     /* X-axis direction */
+  #define X_ENABLE 12   /* 12 this is ENC output, this is a fault-line input */
+#endif
+
+#ifdef DRIVER_TLE9201
+  #define SCLpin 37
+  #define SDApin 36
+#else
+  #define SCLpin  15    /* EEPROM i2c signals */
+  #define SDApin  14
+#endif
 
 #define SPINDLE_TIMER Timer1
 #define Spindle_PWM 16      /* output pin for Spindle PWM */
@@ -182,6 +201,14 @@
   #define Encoder_XB 3
 #endif
 
+#ifdef DRIVER_TLE9201
+  #define Encoder_YA 20 /* Y encoder phases A & B */
+  #define Encoder_YB 21
+  #define Encoder_ZA 19 /* Z encoder phases A & B */
+  #define Encoder_ZB 18
+  #define Encoder_XA 2  /* X encoder phases A & B */
+  #define Encoder_XB 3
+#endif
 
 #define X_STEP  33  /* GRBL harware interface */
 #define X_DIRECTION 36
@@ -193,7 +220,7 @@
 
 #define MAX_PWM_LEVEL 255
 #define MIN_PWM_LEVEL 5
-  
+
 struct PID_MOTION 
 {
   long int Kp;
@@ -215,7 +242,9 @@ struct PID_MOTION
   int P_PWM;
   int M_PWM;
   int ENABLE;
+  int DIRECTION;
 };
+
 
 extern struct PID_MOTION x_axis, y_axis, z_axis;
 extern long int xSpeed, ySpeed, zSpeed;  // current speed each axis

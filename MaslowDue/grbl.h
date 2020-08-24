@@ -19,7 +19,7 @@
 
     reworked for Maslow-Due (Arduino Due) by Larry D O'Cull  Mar 2019
 */
-
+#include "MaslowDue.h"
 #ifndef grbl_h
 #define grbl_h
 
@@ -36,10 +36,14 @@
 
 
 #ifdef MASLOWCNC
-  #define GRBL_VERSION_BUILD "20190407.MazDue"
+  #ifdef DRIVER_TLE9201
+   #define GRBL_VERSION_BUILD "20200824.MazDue" // TLE9201  Where to put this in as an info descriptor?
+  #else
+   #define GRBL_VERSION_BUILD "20200824.MazDue"
+  #endif
   #include "Arduino.h"
 #else
-  #define GRBL_VERSION_BUILD "20180813.Mega"
+  #define GRBL_VERSION_BUILD "20180824.Mega"
   #include <avr/io.h>
   #include <avr/pgmspace.h>
   #include <avr/interrupt.h>

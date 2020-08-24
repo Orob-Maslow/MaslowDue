@@ -88,6 +88,23 @@
     #define default_zKi     (21.000*1024)
     #define default_zImax   (5000)
     #define default_zKd     (17.000*1024)
+  
+  #elseif DRIVER_TLE9201                   //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    #define default_xKp     (10.000*1024)
+    #define default_xKi     (21.000*1024)
+    #define default_xImax   (5000)
+    #define default_xKd     (18.000*1024)
+
+    #define default_yKp     (10.000*1024)
+    #define default_yKi     (21.000*1024)
+    #define default_yImax   (5000)
+    #define default_yKd     (18.000*1024)
+
+    #define default_zKp     (10.000*1024)
+    #define default_zKi     (21.000*1024)
+    #define default_zImax   (5000)
+    #define default_zKd     (17.000*1024) //!!!!!!!!!!!!!!!!!!!!!!!!!
+  
   #else
     #define default_xKp     (22.000*1024)
     #define default_xKi     (17.000*1024)
