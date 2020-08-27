@@ -136,9 +136,12 @@
   #define XP_PWM 10     /* X-axis PWM output */
   #define X_DIR 11     /* X-axis direction */
   #define X_ENABLE 12   /* 12 this is ENC output, this is a fault-line input */
-#endif
-
-#ifdef DRIVER_TLE9201
+  // probe pin is analog pin 5
+  // what is spindle enable pin?
+  // what is ALL stop pin?
+  // 
+  
+// EEPROM location
   #define SCLpin 37
   #define SDApin 36
 #else
@@ -208,15 +211,23 @@
   #define Encoder_ZB 18
   #define Encoder_XA 2  /* X encoder phases A & B */
   #define Encoder_XB 3
+  #define AXES_DISABLE 44// this is all stop?
+  #define X_DIRECTION 28// for stepper?
+  #define Y_DIRECTION 29// for stepper?
+  #define Z_DIRECTION 30
+  #define X_STEP 31
+  #define Y_STEP 32
+  #define Z_STEP 33
+#else
+ #define X_DIRECTION 36
+ #define Z_DIRECTION 37
+ #define X_STEP  33        /* GRBL harware interface */
+ #define Z_STEP  34
+ #define Y_STEP  35
+ #define Y_DIRECTION 38
+ #define AXES_DISABLE 39
 #endif
 
-#define X_STEP  33  /* GRBL harware interface */
-#define X_DIRECTION 36
-#define Z_STEP  34
-#define Z_DIRECTION 37
-#define Y_STEP  35
-#define Y_DIRECTION 38
-#define AXES_DISABLE 39
 
 #define MAX_PWM_LEVEL 255
 #define MIN_PWM_LEVEL 5

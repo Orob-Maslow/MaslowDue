@@ -301,13 +301,13 @@
   #warning "ARDUINO DUE MAPPING SELECTED"
   #define GRBL_PLATFORM "MaslowDUE"
 
-  #define X_STEP_BIT      1  // Due Digital = C.1 pin 33
+  #define X_STEP_BIT      1  // Due Digital = C.1 pin 33 (these are aux pins on maslow 9201)
   #define Y_STEP_BIT      2  // Due Digital = C.2 pin 34
   #define Z_STEP_BIT      3  // Due Digital = C.3 pin 35
   #define STEP_MASK       ((1<<X_STEP_BIT)|(1<<Y_STEP_BIT)|(1<<Z_STEP_BIT)) // All step bits
 
-  #define X_DIRECTION_BIT   4  // Due Digital = C.4 pin 36
-  #define Y_DIRECTION_BIT   5  // Due Digital = C.5 pin 37
+  #define X_DIRECTION_BIT   4  // Due Digital = C.4 pin 36  (conflicts with maslow 9201 EESDA pin)
+  #define Y_DIRECTION_BIT   5  // Due Digital = C.5 pin 37  (conflicts with maslow 9201 EESCL pin)
   #define Z_DIRECTION_BIT   6  // Due Digital = C.6 pin 38
   #define DIRECTION_MASK    ((1<<X_DIRECTION_BIT)|(1<<Y_DIRECTION_BIT)|(1<<Z_DIRECTION_BIT)) // All direction bits
 

@@ -140,7 +140,7 @@ long compute_PID(struct PID_MOTION *axis_ptr)
       if(Motors_Disabled)
         digitalWrite(axis_ptr->ENABLE, 1);
       else
-        analogWrite(axis_ptr->P_PWM, (255-PWM_value));
+        analogWrite(axis_ptr->P_PWM, (PWM_value));
   #else
       analogWrite(axis_ptr->M_PWM, 0);         // spin Positive
       analogWrite(axis_ptr->P_PWM, PWM_value);
@@ -159,7 +159,7 @@ long compute_PID(struct PID_MOTION *axis_ptr)
       if(Motors_Disabled)
         digitalWrite(axis_ptr->ENABLE, 1);
       else
-      analogWrite(axis_ptr->P_PWM, (255-PWM_value));
+      analogWrite(axis_ptr->P_PWM, (PWM_value));
    #else
       analogWrite(axis_ptr->P_PWM, 0);       // spin Negative
       analogWrite(axis_ptr->M_PWM, PWM_value);
