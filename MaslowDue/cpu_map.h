@@ -318,7 +318,7 @@
   // NOTE: All limit bit pins must be on the same port, but not on a port with other input pins (CONTROL).
   #define X_LIMIT_BIT      8  // Due pin 40 - C.8
   #define Y_LIMIT_BIT      9  // Due pin 41 - C.9
-  #define Z_LIMIT_BIT     13  // Due pin 50 - C.13
+  #define Z_LIMIT_BIT     17  // Due pin 50 - C.13
 
   #define MAX_SEG_LENGTH_MM 2.0 /* long lines must be segmented due to circular motion */
 

@@ -41,13 +41,13 @@
   #define DEFAULT_Z_STEPS_PER_MM ((168*28)/5.12)	// 168:1 gear * 28 ppr encoder / 2mm per rev
   #define DEFAULT_X_MAX_RATE 1000.0 // mm/min
   #define DEFAULT_Y_MAX_RATE 1000.0 // mm/min
-  #define DEFAULT_Z_MAX_RATE 250.0 // mm/min
+  #define DEFAULT_Z_MAX_RATE 250.0 // mm/min -> 100 rpm Z motor = 1500
   #define DEFAULT_X_ACCELERATION (25.0*60*60) // 10*60*60 mm/min^2 = 10 mm/sec^2
   #define DEFAULT_Y_ACCELERATION (25.0*60*60) // 10*60*60 mm/min^2 = 10 mm/sec^2
-  #define DEFAULT_Z_ACCELERATION (10.0*60*60) // 10*60*60 mm/min^2 = 10 mm/sec^2
+  #define DEFAULT_Z_ACCELERATION (10.0*60*60) // 10*60*60 mm/min^2 = 10 mm/sec^2  -> 100 rpm z motor = 25
   #define DEFAULT_X_MAX_TRAVEL (96*25.4) // mm
   #define DEFAULT_Y_MAX_TRAVEL (48*25.4) // mm
-  #define DEFAULT_Z_MAX_TRAVEL 25.0 // mm
+  #define DEFAULT_Z_MAX_TRAVEL 25.0 // mm  -> max travel should be 100 mm
   #define DEFAULT_SPINDLE_RPM_MAX 24000.0 // rpm
   #define DEFAULT_SPINDLE_RPM_MIN 4000.0 // rpm
   #define DEFAULT_STEP_PULSE_MICROSECONDS 10

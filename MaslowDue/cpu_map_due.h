@@ -67,8 +67,8 @@ DUE
 
 #define X_LIMIT_BIT      8  // Due pin 40 - C.8
 #define Y_LIMIT_BIT      9  // Due pin 41 - C.9
-#ifdef VARIABLE_SPINDLE   // Z Limit pin and spindle enabled swapped to access hardware PWM on Pin 11.  
-  #define Z_LIMIT_BIT     13 // Due pin 50 - C.13
+#ifndef VARIABLE_SPINDLE   // Z Limit pin and spindle enabled swapped to access hardware PWM on Pin 11. *** changed to Ndef 9/2/2020 
+  #define Z_LIMIT_BIT     17 // Due pin 50 - C.13
 #else
   #define Z_LIMIT_BIT    12  // Due pin 51 - C.12
 #endif
