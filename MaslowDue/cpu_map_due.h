@@ -70,7 +70,7 @@ DUE
 #ifdef VARIABLE_SPINDLE   // Z Limit pin and spindle enabled swapped to access hardware PWM on Pin 11.  
   #define Z_LIMIT_BIT     13 // Due pin 50 - C.13
 #else
-  #define Z_LIMIT_BIT    12  // Due pin 51 - C.12
+  #define Z_LIMIT_BIT    17  // Due pin 51 - C.12
 #endif
 
 //  
