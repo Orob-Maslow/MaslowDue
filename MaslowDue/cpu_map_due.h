@@ -68,7 +68,7 @@ DUE
 #define X_LIMIT_BIT      8  // Due pin 40 - C.8
 #define Y_LIMIT_BIT      9  // Due pin 41 - C.9
 #ifndef VARIABLE_SPINDLE   // Z Limit pin and spindle enabled swapped to access hardware PWM on Pin 11. *** changed to Ndef 9/2/2020 
-  #define Z_LIMIT_BIT     17 // Due pin 50 - C.13
+  #define Z_LIMIT_BIT     17 // Due pin 50 - C.13  // this is where the z- phoenix plug connects
 #else
   #define Z_LIMIT_BIT    12  // Due pin 51 - C.12
 #endif
@@ -76,7 +76,7 @@ DUE
 //  
 //// Define probe switch input pin.
 
-#define PROBE_BIT       5  // Uno Analog Pin 5
+#define PROBE_BIT       5  // Uno Analog Pin 5 (what about mega and due?????)
 #define PROBE_MASK      (1<<PROBE_BIT)
 //
 //// Start of PWM & Stepper Enabled Spindle

@@ -32,7 +32,9 @@
 //#define DRIVER_L298P_11    /* Uncomment this for a L298P version 1.1 Shield */
 //#define DRIVER_L298P_10    /* Uncomment this for a L298P version 1.0 Shield */
 //#define DRIVER_TLE5206       /* Uncomment this for a TLE5206 version Shield */
-
+//#define FullSize /* this is the default size*/
+#define HalfSize /* this is the 4x4 size */
+#define metalFastZ /* this is the different 100 rpm z motor
 // uncomment this to work on PID settings and such using a terminal window
 //#define TUNING_MODE 1
 
