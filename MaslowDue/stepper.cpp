@@ -31,7 +31,13 @@
   void timer3_handler(void);  // used as the GRBL TMR0 replacement
   void timer4_handler(void);  // used as the GRBL TMR1 replacement
 #endif
+#ifdef MASLOW_MEGA_CNC
+  #include "MaslowDue.h"
+  //#include "DueTimer.h"
 
+  void timer3_handler(void);  // used as the GRBL TMR0 replacement
+  void timer4_handler(void);  // used as the GRBL TMR1 replacement
+#endif
 // Some useful constants.
 #define DT_SEGMENT (1.0/(ACCELERATION_TICKS_PER_SECOND*60.0)) // min/segment
 #define REQ_MM_INCREMENT_SCALAR 1.25
@@ -39,7 +45,6 @@
 #define RAMP_CRUISE 1
 #define RAMP_DECEL 2
 #define RAMP_DECEL_OVERRIDE 3
-
 #define PREP_FLAG_RECALCULATE bit(0)
 #define PREP_FLAG_HOLD_PARTIAL_BLOCK bit(1)
 #define PREP_FLAG_PARKING bit(2)
@@ -59,7 +64,6 @@
 #define AMASS_LEVEL1 (F_CPU/8000) // Over-drives ISR (x2). Defined as F_CPU/(Cutoff frequency in Hz)
 #define AMASS_LEVEL2 (F_CPU/4000) // Over-drives ISR (x4)
 #define AMASS_LEVEL3 (F_CPU/2000) // Over-drives ISR (x8)
-
 
 // Stores the planner block Bresenham algorithm execution data for the segments in the segment
 // buffer. Normally, this buffer is partially in-use, but, for the worst case scenario, it will
@@ -237,35 +241,34 @@ static st_prep_t prep;
   int idx;
 #endif // Ramps Board
 
-void st_wake_up()
-{
+void st_wake_up(){
   #ifndef MASLOWCNC
-    #ifdef DEFAULTS_RAMPS_BOARD
-      int idx;
-    #endif // Ramps Board
-    
-    // Enable stepper drivers.
-    #ifdef DEFAULTS_RAMPS_BOARD
-      if (bit_istrue(settings.flags,BITFLAG_INVERT_ST_ENABLE)) {
-        STEPPER_DISABLE_PORT(0) |= (1 << STEPPER_DISABLE_BIT(0));
-        STEPPER_DISABLE_PORT(1) |= (1 << STEPPER_DISABLE_BIT(1));
-        STEPPER_DISABLE_PORT(2) |= (1 << STEPPER_DISABLE_BIT(2));
-      } else {
-        STEPPER_DISABLE_PORT(0) &= ~(1 << STEPPER_DISABLE_BIT(0));
-        STEPPER_DISABLE_PORT(1) &= ~(1 << STEPPER_DISABLE_BIT(1));
-        STEPPER_DISABLE_PORT(2) &= ~(1 << STEPPER_DISABLE_BIT(2));
-      }
-      // Initialize stepper output bits to ensure first ISR call does not step.
-      for (idx = 0; idx < N_AXIS; idx++) {
-        st.step_outbits[idx] = step_port_invert_mask[idx];
-      }
-    #else
-      if (bit_istrue(settings.flags,BITFLAG_INVERT_ST_ENABLE)) { STEPPERS_DISABLE_PORT |= (1<<STEPPERS_DISABLE_BIT); }
-      else { STEPPERS_DISABLE_PORT &= ~(1<<STEPPERS_DISABLE_BIT); }
-      // Initialize stepper output bits to ensure first ISR call does not step.
-      st.step_outbits = step_port_invert_mask;
-    #endif // Ramps Board
-
+    #ifndef MASLOW_MEGA_CNC
+      #ifdef DEFAULTS_RAMPS_BOARD
+        int idx;
+      #endif // Ramps Board
+      // Enable stepper drivers.
+      #ifdef DEFAULTS_RAMPS_BOARD
+        if (bit_istrue(settings.flags,BITFLAG_INVERT_ST_ENABLE)) {
+          STEPPER_DISABLE_PORT(0) |= (1 << STEPPER_DISABLE_BIT(0));
+          STEPPER_DISABLE_PORT(1) |= (1 << STEPPER_DISABLE_BIT(1));
+          STEPPER_DISABLE_PORT(2) |= (1 << STEPPER_DISABLE_BIT(2));
+        } else {
+          STEPPER_DISABLE_PORT(0) &= ~(1 << STEPPER_DISABLE_BIT(0));
+          STEPPER_DISABLE_PORT(1) &= ~(1 << STEPPER_DISABLE_BIT(1));
+          STEPPER_DISABLE_PORT(2) &= ~(1 << STEPPER_DISABLE_BIT(2));
+        }
+        // Initialize stepper output bits to ensure first ISR call does not step.
+        for (idx = 0; idx < N_AXIS; idx++) {
+          st.step_outbits[idx] = step_port_invert_mask[idx];
+        }
+      #else
+        if (bit_istrue(settings.flags,BITFLAG_INVERT_ST_ENABLE)) { STEPPERS_DISABLE_PORT |= (1<<STEPPERS_DISABLE_BIT); }
+        else { STEPPERS_DISABLE_PORT &= ~(1<<STEPPERS_DISABLE_BIT); }
+        // Initialize stepper output bits to ensure first ISR call does not step.
+        st.step_outbits = step_port_invert_mask;
+      #endif // Ramps Board
+    #endif
   #endif
 
     // Initialize step pulse timing from settings. Here to ensure updating after re-writing.
@@ -273,8 +276,10 @@ void st_wake_up()
       // Set total step pulse time after direction pin set. Ad hoc computation from oscilloscope.
       st.step_pulse_time = -(((settings.pulse_microseconds+STEP_PULSE_DELAY-2)*TICKS_PER_MICROSECOND) >> 3);
       #ifndef MASLOWCNC
-        // Set delay between direction pin write and step command.
-        OCR0A = -(((settings.pulse_microseconds)*TICKS_PER_MICROSECOND) >> 3);
+        #ifndef MASLOW_MEGA_CNC
+          // Set delay between direction pin write and step command.
+          OCR0A = -(((settings.pulse_microseconds)*TICKS_PER_MICROSECOND) >> 3);
+        #endif
       #endif
     #else // Normal operation
       // Set step pulse time. Ad hoc computation from oscilloscope. Uses two's complement.
@@ -282,43 +287,49 @@ void st_wake_up()
     #endif
   
   #ifdef MASLOWCNC
-      Timer4.attachInterrupt(timer4_handler).start(settings.pulse_microseconds * 100);
+    Timer4.attachInterrupt(timer4_handler).start(settings.pulse_microseconds * 100);
   #else
-    // Enable Stepper Driver Interrupt
-    TIMSK1 |= (1<<OCIE1A);
+    #ifdef MASLOW_MEGA_CNC
+      Timer4.attachInterrupt(timer4_handler).start(settings.pulse_microseconds * 100);
+    #else
+      // Enable Stepper Driver Interrupt
+      TIMSK1 |= (1<<OCIE1A);
+    #endif
   #endif
 }
 
 bool pin_state = false; // Keep enabled.
-void stepperTimeoutHandler(void)
-{
+void stepperTimeoutHandler(void){
   Timer3.stop();
   if (bit_istrue(settings.flags,BITFLAG_INVERT_ST_ENABLE)) { pin_state = !pin_state; } // Apply pin invert.
     pin_state = true; // Override. Disable steppers.
 }
 
 // Stepper shutdown
-void st_go_idle()
-{
-
+void st_go_idle(){
   #ifndef MASLOWCNC
-    // Disable Stepper Driver Interrupt. Allow Stepper Port Reset Interrupt to finish, if active.
-    TIMSK1 &= ~(1<<OCIE1A); // Disable Timer1 interrupt
-    TCCR1B = (TCCR1B & ~((1<<CS12) | (1<<CS11))) | (1<<CS10); // Reset clock to no prescaling.
-  
-    bool pin_state = false; // Keep enabled.
+    #ifndef MASLOW_MEGA_CNC
+      // Disable Stepper Driver Interrupt. Allow Stepper Port Reset Interrupt to finish, if active.
+      TIMSK1 &= ~(1<<OCIE1A); // Disable Timer1 interrupt
+      TCCR1B = (TCCR1B & ~((1<<CS12) | (1<<CS11))) | (1<<CS10); // Reset clock to no prescaling.
+      bool pin_state = false; // Keep enabled.
+    #else
+      Timer4.stop();
+    #endif
   #else
       Timer4.stop();
   #endif
-
   busy = false;
-
   // Set stepper driver idle state, disabled or enabled, depending on settings and circumstances.
   if (((settings.stepper_idle_lock_time != 0xff) || sys_rt_exec_alarm || sys.state == STATE_SLEEP) && sys.state != STATE_HOMING) {
     // Force stepper dwell to lock axes for a defined amount of time to ensure the axes come to a complete
     // stop and not drift from residual inertial forces at the end of the last movement.
     #ifndef MASLOWCNC
-      delay_ms(settings.stepper_idle_lock_time);
+      #ifndef MALSOW_MEGA_CNC
+        delay_ms(settings.stepper_idle_lock_time);
+      #else
+        Timer3.attachInterrupt(stepperTimeoutHandler).start(settings.stepper_idle_lock_time * 1000);
+      #endif
     #else
       Timer3.attachInterrupt(stepperTimeoutHandler).start(settings.stepper_idle_lock_time * 1000);
     #endif
@@ -328,6 +339,22 @@ void st_go_idle()
   if (bit_istrue(settings.flags,BITFLAG_INVERT_ST_ENABLE)) { pin_state = !pin_state; } // Apply pin invert.
 
   #ifndef MASLOWCNC
+    #ifdef DEFAULTS_RAMPS_BOARD
+      if (pin_state) {
+        STEPPER_DISABLE_PORT(0) |= (1 << STEPPER_DISABLE_BIT(0));
+        STEPPER_DISABLE_PORT(1) |= (1 << STEPPER_DISABLE_BIT(1));
+        STEPPER_DISABLE_PORT(2) |= (1 << STEPPER_DISABLE_BIT(2));
+      } else {
+        STEPPER_DISABLE_PORT(0) &= ~(1 << STEPPER_DISABLE_BIT(0));
+        STEPPER_DISABLE_PORT(1) &= ~(1 << STEPPER_DISABLE_BIT(1));
+        STEPPER_DISABLE_PORT(2) &= ~(1 << STEPPER_DISABLE_BIT(2));
+      }
+    #else
+      if (pin_state) { STEPPERS_DISABLE_PORT |= (1<<STEPPERS_DISABLE_BIT); }
+      else { STEPPERS_DISABLE_PORT &= ~(1<<STEPPERS_DISABLE_BIT); }
+    #endif // Ramps Board
+  #endif
+  #ifndef MASLOW_MEGA_CNC
     #ifdef DEFAULTS_RAMPS_BOARD
       if (pin_state) {
         STEPPER_DISABLE_PORT(0) |= (1 << STEPPER_DISABLE_BIT(0));
@@ -398,93 +425,110 @@ void st_go_idle()
 #ifdef MASLOWCNC
   void timer4_handler(void)
 #else
-  ISR(TIMER1_COMPA_vect)
+  #ifdef MASLOW_MEGA_CNC
+    void timer4_handler(void)
+  #else
+    ISR(TIMER1_COMPA_vect)
+  #endif
+#else
+ ISR(TIMER1_COMPA_vect)
 #endif
 {
   #ifdef DEFAULTS_RAMPS_BOARD
     int i;
   #endif // Ramps Board
-
   if (busy) { return; } // The busy-flag is used to avoid reentering this interrupt
-
   #ifndef MASLOWCNC
-    // Set the direction pins a couple of nanoseconds before we step the steppers
-    #ifdef DEFAULTS_RAMPS_BOARD
-      DIRECTION_PORT(0) = (DIRECTION_PORT(0) & ~(1 << DIRECTION_BIT(0))) | st.dir_outbits[0];
-      DIRECTION_PORT(1) = (DIRECTION_PORT(1) & ~(1 << DIRECTION_BIT(1))) | st.dir_outbits[1];
-      DIRECTION_PORT(2) = (DIRECTION_PORT(2) & ~(1 << DIRECTION_BIT(2))) | st.dir_outbits[2];
-    #else
-      DIRECTION_PORT = (DIRECTION_PORT & ~DIRECTION_MASK) | (st.dir_outbits & DIRECTION_MASK);
-    #endif // Ramps Boafd
-
-    // Then pulse the stepping pins
-    #ifdef DEFAULTS_RAMPS_BOARD
-      #ifdef STEP_PULSE_DELAY
-        st.step_bits[0] = (STEP_PORT(0) & ~(1 << STEP_BIT(0))) | st.step_outbits[0]; // Store out_bits to prevent overwriting.
-        st.step_bits[1] = (STEP_PORT(1) & ~(1 << STEP_BIT(1))) | st.step_outbits[1]; // Store out_bits to prevent overwriting.
-        st.step_bits[2] = (STEP_PORT(2) & ~(1 << STEP_BIT(2))) | st.step_outbits[2]; // Store out_bits to prevent overwriting.
+    #ifndef MASLOW_MEGA_CNC
+      // Set the direction pins a couple of nanoseconds before we step the steppers
+      #ifdef DEFAULTS_RAMPS_BOARD
+        DIRECTION_PORT(0) = (DIRECTION_PORT(0) & ~(1 << DIRECTION_BIT(0))) | st.dir_outbits[0];
+        DIRECTION_PORT(1) = (DIRECTION_PORT(1) & ~(1 << DIRECTION_BIT(1))) | st.dir_outbits[1];
+        DIRECTION_PORT(2) = (DIRECTION_PORT(2) & ~(1 << DIRECTION_BIT(2))) | st.dir_outbits[2];
       #else
-        STEP_PORT(0) = (STEP_PORT(0) & ~(1 << STEP_BIT(0))) | st.step_outbits[0];
-        STEP_PORT(1) = (STEP_PORT(1) & ~(1 << STEP_BIT(1))) | st.step_outbits[1];
-        STEP_PORT(2) = (STEP_PORT(2) & ~(1 << STEP_BIT(2))) | st.step_outbits[2];
-      #endif
-    #else  
-      #ifdef STEP_PULSE_DELAY
-        st.step_bits = (STEP_PORT & ~STEP_MASK) | st.step_outbits; // Store out_bits to prevent overwriting.
-      #else  // Normal operation
-        STEP_PORT = (STEP_PORT & ~STEP_MASK) | st.step_outbits;
-      #endif
-    #endif // Ramps Board
+        DIRECTION_PORT = (DIRECTION_PORT & ~DIRECTION_MASK) | (st.dir_outbits & DIRECTION_MASK);
+      #endif // Ramps Boafd
 
-    // Enable step pulse reset timer so that The Stepper Port Reset Interrupt can reset the signal after
-    // exactly settings.pulse_microseconds microseconds, independent of the main Timer1 prescaler.
-    TCNT0 = st.step_pulse_time; // Reload Timer0 counter
-    TCCR0B = (1<<CS01); // Begin Timer0. Full speed, 1/8 prescaler
+      // Then pulse the stepping pins
+      #ifdef DEFAULTS_RAMPS_BOARD
+        #ifdef STEP_PULSE_DELAY
+          st.step_bits[0] = (STEP_PORT(0) & ~(1 << STEP_BIT(0))) | st.step_outbits[0]; // Store out_bits to prevent overwriting.
+          st.step_bits[1] = (STEP_PORT(1) & ~(1 << STEP_BIT(1))) | st.step_outbits[1]; // Store out_bits to prevent overwriting.
+          st.step_bits[2] = (STEP_PORT(2) & ~(1 << STEP_BIT(2))) | st.step_outbits[2]; // Store out_bits to prevent overwriting.
+        #else
+          STEP_PORT(0) = (STEP_PORT(0) & ~(1 << STEP_BIT(0))) | st.step_outbits[0];
+          STEP_PORT(1) = (STEP_PORT(1) & ~(1 << STEP_BIT(1))) | st.step_outbits[1];
+          STEP_PORT(2) = (STEP_PORT(2) & ~(1 << STEP_BIT(2))) | st.step_outbits[2];
+        #endif
+      #else  
+        #ifdef STEP_PULSE_DELAY
+          st.step_bits = (STEP_PORT & ~STEP_MASK) | st.step_outbits; // Store out_bits to prevent overwriting.
+        #else  // Normal operation
+          STEP_PORT = (STEP_PORT & ~STEP_MASK) | st.step_outbits;
+        #endif
+      #endif // Ramps Board
 
-    sei(); // Re-enable interrupts to allow Stepper Port Reset Interrupt to fire on-time.
-         // NOTE: The remaining code in this ISR will finish before returning to main program.
-
+      // Enable step pulse reset timer so that The Stepper Port Reset Interrupt can reset the signal after
+      // exactly settings.pulse_microseconds microseconds, independent of the main Timer1 prescaler.
+      TCNT0 = st.step_pulse_time; // Reload Timer0 counter
+      TCCR0B = (1<<CS01); // Begin Timer0. Full speed, 1/8 prescaler
+      sei(); // Re-enable interrupts to allow Stepper Port Reset Interrupt to fire on-time.
+          // NOTE: The remaining code in this ISR will finish before returning to main program.
+    #else
+      Timer4.stop();  // MASLOW is a brushed motor setup with PID loops (steps=encoder counts)
+      // 'Left Motor'
+      if ((st.step_outbits & (1 << X_STEP_BIT)) && (st.dir_outbits & (1 << X_DIRECTION_BIT)) == 0)
+        x_axis.target++;
+      else if ((st.step_outbits & (1 << X_STEP_BIT)) && (st.dir_outbits & (1 << X_DIRECTION_BIT)))
+        x_axis.target--;
+      // REVERSED 'Right Motor'
+      if ((st.step_outbits & (1 << Y_STEP_BIT)) && (st.dir_outbits & (1 << Y_DIRECTION_BIT)) == 0)
+        y_axis.target--;  //=== !!
+      else if ((st.step_outbits & (1 << Y_STEP_BIT)) && (st.dir_outbits & (1 << Y_DIRECTION_BIT)))
+        y_axis.target++;  //=== !!
+      // Z-axis
+      if ((st.step_outbits & (1 << Z_STEP_BIT)) && (st.dir_outbits & (1 << Z_DIRECTION_BIT)) == 0)
+        z_axis.target++;
+      else if ((st.step_outbits & (1 << Z_STEP_BIT)) && (st.dir_outbits & (1 << Z_DIRECTION_BIT)))
+        z_axis.target--;
+    #endif
   #else
     Timer4.stop();  // MASLOW is a brushed motor setup with PID loops (steps=encoder counts)
-
-  // 'Left Motor'
+    // 'Left Motor'
     if ((st.step_outbits & (1 << X_STEP_BIT)) && (st.dir_outbits & (1 << X_DIRECTION_BIT)) == 0)
       x_axis.target++;
     else if ((st.step_outbits & (1 << X_STEP_BIT)) && (st.dir_outbits & (1 << X_DIRECTION_BIT)))
       x_axis.target--;
-
-  // REVERSED 'Right Motor'
+    // REVERSED 'Right Motor'
     if ((st.step_outbits & (1 << Y_STEP_BIT)) && (st.dir_outbits & (1 << Y_DIRECTION_BIT)) == 0)
       y_axis.target--;  //=== !!
     else if ((st.step_outbits & (1 << Y_STEP_BIT)) && (st.dir_outbits & (1 << Y_DIRECTION_BIT)))
       y_axis.target++;  //=== !!
-
-  // Z-axis
+    // Z-axis
     if ((st.step_outbits & (1 << Z_STEP_BIT)) && (st.dir_outbits & (1 << Z_DIRECTION_BIT)) == 0)
       z_axis.target++;
     else if ((st.step_outbits & (1 << Z_STEP_BIT)) && (st.dir_outbits & (1 << Z_DIRECTION_BIT)))
       z_axis.target--;
-    
   #endif
-
   busy = true;
-
   // If there is no step segment, attempt to pop one from the stepper buffer
   if (st.exec_segment == NULL) {
     // Anything in the buffer? If so, load and initialize next step segment.
     if (segment_buffer_head != segment_buffer_tail) {
       // Initialize new step segment and load number of steps to execute
       st.exec_segment = &segment_buffer[segment_buffer_tail];
-
       #ifndef MASLOWCNC
-        #ifndef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
-          // With AMASS is disabled, set timer prescaler for segments with slow step frequencies (< 250Hz).
-          #warning "ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING is on!!"
-          TCCR1B = (TCCR1B & ~(0x07<<CS10)) | (st.exec_segment->prescaler<<CS10);
+        #ifndef MASLOW_MEGA_CNC
+          #ifndef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
+            // With AMASS is disabled, set timer prescaler for segments with slow step frequencies (< 250Hz).
+            #warning "ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING is on!!"
+            TCCR1B = (TCCR1B & ~(0x07<<CS10)) | (st.exec_segment->prescaler<<CS10);
+          #endif
+          // Initialize step segment timing per step and load number of steps to execute.
+          OCR1A = st.exec_segment->cycles_per_tick;
+        #else
+          Timer4.setPeriod(st.exec_segment->cycles_per_tick);  // cycles are now in uS.!! 
         #endif
-
-        // Initialize step segment timing per step and load number of steps to execute.
-        OCR1A = st.exec_segment->cycles_per_tick;
       #else
         Timer4.setPeriod(st.exec_segment->cycles_per_tick);  // cycles are now in uS.!! 
       #endif
@@ -505,17 +549,14 @@ void st_go_idle()
       #else
         st.dir_outbits = st.exec_block->direction_bits ^ dir_port_invert_mask;
       #endif // Ramps Board
-
       #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
         // With AMASS enabled, adjust Bresenham axis increment counters according to AMASS level.
         st.steps[X_AXIS] = st.exec_block->steps[X_AXIS] >> st.exec_segment->amass_level;
         st.steps[Y_AXIS] = st.exec_block->steps[Y_AXIS] >> st.exec_segment->amass_level;
         st.steps[Z_AXIS] = st.exec_block->steps[Z_AXIS] >> st.exec_segment->amass_level;
       #endif
-
       // Set real-time spindle output as segment is loaded, just prior to the first step.
       spindle_set_speed(st.exec_segment->spindle_pwm);
-
     } else {
       // Segment buffer empty. Shutdown.
       st_go_idle();
@@ -525,11 +566,8 @@ void st_go_idle()
       return; // Nothing to do but exit.
     }
   }
-
-
   // Check probing state.
   if (sys_probe_state == PROBE_ACTIVE) { probe_state_monitor(); }
-
   // Reset step out bits.
   #ifdef DEFAULTS_RAMPS_BOARD
     for (i = 0; i < N_AXIS; i++)
@@ -537,7 +575,6 @@ void st_go_idle()
   #else
     st.step_outbits = 0;
   #endif // Ramps Board
-
   // Execute step displacement profile by Bresenham line algorithm
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     st.counter_x += st.steps[X_AXIS];
@@ -559,7 +596,6 @@ void st_go_idle()
       else { sys_position[X_AXIS]++; }
     }
   #endif // Ramps Board
-
   #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
     st.counter_y += st.steps[Y_AXIS];
   #else
@@ -600,7 +636,6 @@ void st_go_idle()
       else { sys_position[Z_AXIS]++; }
     }
   #endif // Ramps Board
-
   // During a homing cycle, lock out and prevent desired axes from moving.
   #ifdef DEFAULTS_RAMPS_BOARD
     for (i = 0; i < N_AXIS; i++)
@@ -621,13 +656,13 @@ void st_go_idle()
     st.step_outbits ^= step_port_invert_mask;  // Apply step port invert mask
   #endif // Ramps Board
   busy = false;
-
   #ifdef MASLOWCNC
     Timer4.start();
   #endif
+  #ifdef MASLOW_MEGA_CNC
+    Timer4.start();
+  #endif
 }
-
-
 /* The Stepper Port Reset Interrupt: Timer0 OVF interrupt handles the falling edge of the step
    pulse. This should always trigger before the next Timer1 COMPA interrupt and independently
    finish, if Timer1 is disabled after completing a move.
@@ -639,35 +674,40 @@ void st_go_idle()
 // This interrupt is enabled by ISR_TIMER1_COMPAREA when it sets the motor port bits to execute
 // a step. This ISR resets the motor port after a short period (settings.pulse_microseconds)
 // completing one step cycle.
-
 #ifndef MASLOWCNC
-  ISR(TIMER0_OVF_vect)
-  {
-    // Reset stepping pins (leave the direction pins)
-    #ifdef DEFAULTS_RAMPS_BOARD
-      STEP_PORT(0) = (STEP_PORT(0) & ~(1 << STEP_BIT(0))) | step_port_invert_mask[0];
-      STEP_PORT(1) = (STEP_PORT(1) & ~(1 << STEP_BIT(1))) | step_port_invert_mask[1];
-      STEP_PORT(2) = (STEP_PORT(2) & ~(1 << STEP_BIT(2))) | step_port_invert_mask[2];
-    #else
-      STEP_PORT = (STEP_PORT & ~STEP_MASK) | (step_port_invert_mask & STEP_MASK);
-    #endif // Ramps Board
-    TCCR0B = 0; // Disable Timer0 to prevent re-entering this interrupt when it's not needed.
-  }
-  #ifdef STEP_PULSE_DELAY
-    // This interrupt is used only when STEP_PULSE_DELAY is enabled. Here, the step pulse is
-    // initiated after the STEP_PULSE_DELAY time period has elapsed. The ISR TIMER2_OVF interrupt
-    // will then trigger after the appropriate settings.pulse_microseconds, as in normal operation.
-    // The new timing between direction, step pulse, and step complete events are setup in the
-    // st_wake_up() routine.
-    ISR(TIMER0_COMPA_vect)
-    {
+  #ifndef MASLOW_MEGA_CNC
+    ISR(TIMER0_OVF_vect){
+      // Reset stepping pins (leave the direction pins)
       #ifdef DEFAULTS_RAMPS_BOARD
-        STEP_PORT(0) = st.step_bits[0]; // Begin step pulse.
-        STEP_PORT(1) = st.step_bits[1]; // Begin step pulse.
-        STEP_PORT(2) = st.step_bits[2]; // Begin step pulse.
+        STEP_PORT(0) = (STEP_PORT(0) & ~(1 << STEP_BIT(0))) | step_port_invert_mask[0];
+        STEP_PORT(1) = (STEP_PORT(1) & ~(1 << STEP_BIT(1))) | step_port_invert_mask[1];
+        STEP_PORT(2) = (STEP_PORT(2) & ~(1 << STEP_BIT(2))) | step_port_invert_mask[2];
       #else
-        STEP_PORT = st.step_bits; // Begin step pulse.
+        STEP_PORT = (STEP_PORT & ~STEP_MASK) | (step_port_invert_mask & STEP_MASK);
       #endif // Ramps Board
+      TCCR0B = 0; // Disable Timer0 to prevent re-entering this interrupt when it's not needed.
+    }
+    #ifdef STEP_PULSE_DELAY
+      // This interrupt is used only when STEP_PULSE_DELAY is enabled. Here, the step pulse is
+      // initiated after the STEP_PULSE_DELAY time period has elapsed. The ISR TIMER2_OVF interrupt
+      // will then trigger after the appropriate settings.pulse_microseconds, as in normal operation.
+      // The new timing between direction, step pulse, and step complete events are setup in the
+      // st_wake_up() routine.
+      ISR(TIMER0_COMPA_vect)
+      {
+        #ifdef DEFAULTS_RAMPS_BOARD
+          STEP_PORT(0) = st.step_bits[0]; // Begin step pulse.
+          STEP_PORT(1) = st.step_bits[1]; // Begin step pulse.
+          STEP_PORT(2) = st.step_bits[2]; // Begin step pulse.
+        #else
+          STEP_PORT = st.step_bits; // Begin step pulse.
+        #endif // Ramps Board
+      }
+    #endif
+  #else
+    void timer3_handler(void){
+      // Reset step cycle..
+      Timer3.stop();
     }
   #endif
 #else
@@ -677,11 +717,8 @@ void st_go_idle()
     Timer3.stop();
   }
 #endif
-
-
 // Generates the step and direction port invert masks used in the Stepper Interrupt Driver.
-void st_generate_step_dir_invert_masks()
-{
+void st_generate_step_dir_invert_masks(){
   uint8_t idx;
   #ifdef DEFAULTS_RAMPS_BOARD
     for (idx=0; idx<N_AXIS; idx++) {
@@ -700,18 +737,13 @@ void st_generate_step_dir_invert_masks()
     }
   #endif // Ramps Board
 }
-
-
 // Reset and clear stepper subsystem variables
-void st_reset()
-{
+void st_reset(){
   #ifdef DEFAULTS_RAMPS_BOARD
     uint8_t idx;
   #endif // Ramps Board
-
   // Initialize stepper driver idle state.
   st_go_idle();
-
   // Initialize stepper algorithm variables.
   memset(&prep, 0, sizeof(st_prep_t));
   memset(&st, 0, sizeof(stepper_t));
@@ -721,103 +753,95 @@ void st_reset()
   segment_buffer_head = 0; // empty = tail
   segment_next_head = 1;
   busy = false;
-
   st_generate_step_dir_invert_masks();
-  
   #ifndef MASLOWCNC
-    #ifdef DEFAULTS_RAMPS_BOARD
-      for (idx=0; idx<N_AXIS; idx++) {
-        st.dir_outbits[idx] = dir_port_invert_mask[idx]; // Initialize direction bits to default.
-      }
-    
-      STEP_PORT(0) = (STEP_PORT(0) & ~(1 << STEP_BIT(0))) | step_port_invert_mask[0];
-      DIRECTION_PORT(0) = (DIRECTION_PORT(0) & ~(1 << DIRECTION_BIT(0))) | dir_port_invert_mask[0];
-    
-      STEP_PORT(1) = (STEP_PORT(1) & ~(1 << STEP_BIT(1))) | step_port_invert_mask[1];
-      DIRECTION_PORT(1) = (DIRECTION_PORT(1) & ~(1 << DIRECTION_BIT(1))) | dir_port_invert_mask[1];
-    
-      STEP_PORT(2) = (STEP_PORT(2) & ~(1 << STEP_BIT(2))) | step_port_invert_mask[2];
-      DIRECTION_PORT(2) = (DIRECTION_PORT(2) & ~(1 << DIRECTION_BIT(2))) | dir_port_invert_mask[2];
-    #else
-      st.dir_outbits = dir_port_invert_mask; // Initialize direction bits to default.
+    #ifndef MASLOW_MEGA_CNC
+      #ifdef DEFAULTS_RAMPS_BOARD
+        for (idx=0; idx<N_AXIS; idx++) {
+          st.dir_outbits[idx] = dir_port_invert_mask[idx]; // Initialize direction bits to default.
+        }
+      
+        STEP_PORT(0) = (STEP_PORT(0) & ~(1 << STEP_BIT(0))) | step_port_invert_mask[0];
+        DIRECTION_PORT(0) = (DIRECTION_PORT(0) & ~(1 << DIRECTION_BIT(0))) | dir_port_invert_mask[0];
+      
+        STEP_PORT(1) = (STEP_PORT(1) & ~(1 << STEP_BIT(1))) | step_port_invert_mask[1];
+        DIRECTION_PORT(1) = (DIRECTION_PORT(1) & ~(1 << DIRECTION_BIT(1))) | dir_port_invert_mask[1];
+      
+        STEP_PORT(2) = (STEP_PORT(2) & ~(1 << STEP_BIT(2))) | step_port_invert_mask[2];
+        DIRECTION_PORT(2) = (DIRECTION_PORT(2) & ~(1 << DIRECTION_BIT(2))) | dir_port_invert_mask[2];
+      #else
+        st.dir_outbits = dir_port_invert_mask; // Initialize direction bits to default.
 
-      // Initialize step and direction port pins.
-      STEP_PORT = (STEP_PORT & ~STEP_MASK) | step_port_invert_mask;
-      DIRECTION_PORT = (DIRECTION_PORT & ~DIRECTION_MASK) | dir_port_invert_mask;
-    #endif // Ramps Board
-  #else
+        // Initialize step and direction port pins.
+        STEP_PORT = (STEP_PORT & ~STEP_MASK) | step_port_invert_mask;
+        DIRECTION_PORT = (DIRECTION_PORT & ~DIRECTION_MASK) | dir_port_invert_mask;
+      #endif // Ramps Board
+    #else
       st.dir_outbits = dir_port_invert_mask; // Initialize direction bits to default
+    #endif
+  #else
+    st.dir_outbits = dir_port_invert_mask; // Initialize direction bits to default
   #endif
 }
-
-
 // Initialize and start the stepper motor subsystem
-void stepper_init()
-{
+void stepper_init(){
   #ifndef MASLOWCNC
-    // Configure step and direction interface pins
-    #ifdef DEFAULTS_RAMPS_BOARD
-      STEP_DDR(0) |= 1<<STEP_BIT(0);
-      STEP_DDR(1) |= 1<<STEP_BIT(1);
-      STEP_DDR(2) |= 1<<STEP_BIT(2);
-    
-      STEPPER_DISABLE_DDR(0) |= 1<<STEPPER_DISABLE_BIT(0);
-      STEPPER_DISABLE_DDR(1) |= 1<<STEPPER_DISABLE_BIT(1);
-      STEPPER_DISABLE_DDR(2) |= 1<<STEPPER_DISABLE_BIT(2);
-    
-      DIRECTION_DDR(0) |= 1<<DIRECTION_BIT(0);
-      DIRECTION_DDR(1) |= 1<<DIRECTION_BIT(1);
-      DIRECTION_DDR(2) |= 1<<DIRECTION_BIT(2);
-    #else
-      STEP_DDR |= STEP_MASK;
-      STEPPERS_DISABLE_DDR |= 1<<STEPPERS_DISABLE_BIT;
-      DIRECTION_DDR |= DIRECTION_MASK;
-    #endif // Ramps Board
+    #ifndef MASLOW_MEGA_CNC
+      // Configure step and direction interface pins
+      #ifdef DEFAULTS_RAMPS_BOARD
+        STEP_DDR(0) |= 1<<STEP_BIT(0);
+        STEP_DDR(1) |= 1<<STEP_BIT(1);
+        STEP_DDR(2) |= 1<<STEP_BIT(2);
+      
+        STEPPER_DISABLE_DDR(0) |= 1<<STEPPER_DISABLE_BIT(0);
+        STEPPER_DISABLE_DDR(1) |= 1<<STEPPER_DISABLE_BIT(1);
+        STEPPER_DISABLE_DDR(2) |= 1<<STEPPER_DISABLE_BIT(2);
+      
+        DIRECTION_DDR(0) |= 1<<DIRECTION_BIT(0);
+        DIRECTION_DDR(1) |= 1<<DIRECTION_BIT(1);
+        DIRECTION_DDR(2) |= 1<<DIRECTION_BIT(2);
+      #else
+        STEP_DDR |= STEP_MASK;
+        STEPPERS_DISABLE_DDR |= 1<<STEPPERS_DISABLE_BIT;
+        DIRECTION_DDR |= DIRECTION_MASK;
+      #endif // Ramps Board
 
-    // Configure Timer 1: Stepper Driver Interrupt
-    TCCR1B &= ~(1<<WGM13); // waveform generation = 0100 = CTC
-    TCCR1B |=  (1<<WGM12);
-    TCCR1A &= ~((1<<WGM11) | (1<<WGM10));
-    TCCR1A &= ~((1<<COM1A1) | (1<<COM1A0) | (1<<COM1B1) | (1<<COM1B0)); // Disconnect OC1 output
-    // TCCR1B = (TCCR1B & ~((1<<CS12) | (1<<CS11))) | (1<<CS10); // Set in st_go_idle().
-    // TIMSK1 &= ~(1<<OCIE1A);  // Set in st_go_idle().
+      // Configure Timer 1: Stepper Driver Interrupt
+      TCCR1B &= ~(1<<WGM13); // waveform generation = 0100 = CTC
+      TCCR1B |=  (1<<WGM12);
+      TCCR1A &= ~((1<<WGM11) | (1<<WGM10));
+      TCCR1A &= ~((1<<COM1A1) | (1<<COM1A0) | (1<<COM1B1) | (1<<COM1B0)); // Disconnect OC1 output
+      // TCCR1B = (TCCR1B & ~((1<<CS12) | (1<<CS11))) | (1<<CS10); // Set in st_go_idle().
+      // TIMSK1 &= ~(1<<OCIE1A);  // Set in st_go_idle().
 
-    // Configure Timer 0: Stepper Port Reset Interrupt
-    TIMSK0 &= ~((1<<OCIE0B) | (1<<OCIE0A) | (1<<TOIE0)); // Disconnect OC0 outputs and OVF interrupt.
-    TCCR0A = 0; // Normal operation
-    TCCR0B = 0; // Disable Timer0 until needed
-    TIMSK0 |= (1<<TOIE0); // Enable Timer0 overflow interrupt
-    #ifdef STEP_PULSE_DELAY
-      TIMSK0 |= (1<<OCIE0A); // Enable Timer0 Compare Match A interrupt
+      // Configure Timer 0: Stepper Port Reset Interrupt
+      TIMSK0 &= ~((1<<OCIE0B) | (1<<OCIE0A) | (1<<TOIE0)); // Disconnect OC0 outputs and OVF interrupt.
+      TCCR0A = 0; // Normal operation
+      TCCR0B = 0; // Disable Timer0 until needed
+      TIMSK0 |= (1<<TOIE0); // Enable Timer0 overflow interrupt
+      #ifdef STEP_PULSE_DELAY
+        TIMSK0 |= (1<<OCIE0A); // Enable Timer0 Compare Match A interrupt
+      #endif
     #endif
   #endif
 }
-
-
 // Called by planner_recalculate() when the executing block is updated by the new plan.
-void st_update_plan_block_parameters()
-{
+void st_update_plan_block_parameters(){
   if (pl_block != NULL) { // Ignore if at start of a new block.
     prep.recalculate_flag |= PREP_FLAG_RECALCULATE;
     pl_block->entry_speed_sqr = prep.current_speed*prep.current_speed; // Update entry speed.
     pl_block = NULL; // Flag st_prep_segment() to load and check active velocity profile.
   }
 }
-
-
 // Increments the step segment buffer block data ring buffer.
-static uint8_t st_next_block_index(uint8_t block_index)
-{
+static uint8_t st_next_block_index(uint8_t block_index){
   block_index++;
   if ( block_index == (SEGMENT_BUFFER_SIZE-1) ) { return(0); }
   return(block_index);
 }
-
-
 #ifdef PARKING_ENABLE
   // Changes the run state of the step segment buffer to execute the special parking motion.
-  void st_parking_setup_buffer()
-  {
+  void st_parking_setup_buffer(){
     // Store step execution data of partially completed block, if necessary.
     if (prep.recalculate_flag & PREP_FLAG_HOLD_PARTIAL_BLOCK) {
       prep.last_st_block_index = prep.st_block_index;
@@ -830,11 +854,8 @@ static uint8_t st_next_block_index(uint8_t block_index)
     prep.recalculate_flag &= ~(PREP_FLAG_RECALCULATE);
     pl_block = NULL; // Always reset parking motion to reload new block.
   }
-
-
   // Restores the step segment buffer to the normal run state after a parking motion.
-  void st_parking_restore_buffer()
-  {
+  void st_parking_restore_buffer(){
     // Restore step execution data and flags of partially completed block, if necessary.
     if (prep.recalculate_flag & PREP_FLAG_HOLD_PARTIAL_BLOCK) {
       st_prep_block = &st_block_buffer[prep.last_st_block_index];
@@ -850,10 +871,7 @@ static uint8_t st_next_block_index(uint8_t block_index)
     pl_block = NULL; // Set to reload next block.
   }
 #endif
-
-
 /* Prepares step segment buffer. Continuously called from main program.
-
    The segment buffer is an intermediary buffer interface between the execution of steps
    by the stepper algorithm and the velocity profiles generated by the planner. The stepper
    algorithm only executes steps within the segment buffer and is filled by the main program
@@ -865,36 +883,27 @@ static uint8_t st_next_block_index(uint8_t block_index)
    Currently, the segment buffer conservatively holds roughly up to 40-50 msec of steps.
    NOTE: Computation units are in steps, millimeters, and minutes.
 */
-void st_prep_buffer()
-{
+void st_prep_buffer(){
   // Block step prep buffer, while in a suspend state and there is no suspend motion to execute.
   if (bit_istrue(sys.step_control,STEP_CONTROL_END_MOTION)) { return; }
-
   while (segment_buffer_tail != segment_next_head) { // Check if we need to fill the buffer.
-
     // Determine if we need to load a new planner block or if the block needs to be recomputed.
     if (pl_block == NULL) {
-
       // Query planner for a queued block
       if (sys.step_control & STEP_CONTROL_EXECUTE_SYS_MOTION) { pl_block = plan_get_system_motion_block(); }
       else { pl_block = plan_get_current_block(); }
       if (pl_block == NULL) { return; } // No planner blocks. Exit.
-
       // Check if we need to only recompute the velocity profile or load a new block.
       if (prep.recalculate_flag & PREP_FLAG_RECALCULATE) {
-
         #ifdef PARKING_ENABLE
           if (prep.recalculate_flag & PREP_FLAG_PARKING) { prep.recalculate_flag &= ~(PREP_FLAG_RECALCULATE); }
           else { prep.recalculate_flag = false; }
         #else
           prep.recalculate_flag = false;
         #endif
-
       } else {
-
         // Load the Bresenham stepping data for the block.
         prep.st_block_index = st_next_block_index(prep.st_block_index);
-
         // Prepare and copy Bresenham algorithm segment data from the new planner block, so that
         // when the segment buffer completes the planner block, it may be discarded when the
         // segment buffer finishes the prepped block, but the stepper ISR is still executing it.
@@ -907,7 +916,6 @@ void st_prep_buffer()
         #else
           st_prep_block->direction_bits = pl_block->direction_bits;
         #endif // Ramps Board
-
         #ifndef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
           for (idx=0; idx<N_AXIS; idx++) { st_prep_block->steps[idx] = (pl_block->steps[idx] << 1); }
           st_prep_block->step_event_count = (pl_block->step_event_count << 1);
@@ -918,13 +926,11 @@ void st_prep_buffer()
           for (idx=0; idx<N_AXIS; idx++) { st_prep_block->steps[idx] = pl_block->steps[idx] << MAX_AMASS_LEVEL; }
           st_prep_block->step_event_count = pl_block->step_event_count << MAX_AMASS_LEVEL;
         #endif
-
         // Initialize segment buffer data for generating the segments.
         prep.steps_remaining = (float)pl_block->step_event_count;
         prep.step_per_mm = prep.steps_remaining/pl_block->millimeters;
         prep.req_mm_increment = REQ_MM_INCREMENT_SCALAR/prep.step_per_mm;
         prep.dt_remainder = 0.0; // Reset for new segment block
-
         if ((sys.step_control & STEP_CONTROL_EXECUTE_HOLD) || (prep.recalculate_flag & PREP_FLAG_DECEL_OVERRIDE)) {
           // New block loaded mid-hold. Override planner block entry speed to enforce deceleration.
           prep.current_speed = prep.exit_speed;
@@ -933,7 +939,6 @@ void st_prep_buffer()
         } else {
           prep.current_speed = sqrt(pl_block->entry_speed_sqr);
         }
-        
         // Setup laser mode variables. PWM rate adjusted motions will always complete a motion with the
         // spindle off. 
         st_prep_block->is_pwm_rate_adjusted = false;
@@ -944,8 +949,7 @@ void st_prep_buffer()
             st_prep_block->is_pwm_rate_adjusted = true; 
           }
         }
-      }
-
+      } 
 			/* ---------------------------------------------------------------------------------
 			 Compute the velocity profile of a new planner block based on its entry and exit
 			 speeds, or recompute the profile of a partially-completed planner block if the
@@ -1036,16 +1040,12 @@ void st_prep_buffer()
 					prep.maximum_speed = prep.exit_speed;
 				}
 			}
-      
       bit_true(sys.step_control, STEP_CONTROL_UPDATE_SPINDLE_PWM); // Force update whenever updating block.
     }
-    
     // Initialize new segment
     segment_t *prep_segment = &segment_buffer[segment_buffer_head];
-
     // Set new segment to point to the current segment data block.
     prep_segment->st_block_index = prep.st_block_index;
-
     /*------------------------------------------------------------------------------------
         Compute the average velocity of this new segment by determining the total distance
       traveled over the segment time DT_SEGMENT. The following code first attempts to create
@@ -1068,7 +1068,6 @@ void st_prep_buffer()
     float mm_remaining = pl_block->millimeters; // New segment distance from end of block.
     float minimum_mm = mm_remaining-prep.req_mm_increment; // Guarantee at least one step.
     if (minimum_mm < 0.0) { minimum_mm = 0.0; }
-
     do {
       switch (prep.ramp_type) {
         case RAMP_DECEL_OVERRIDE:
@@ -1143,12 +1142,9 @@ void st_prep_buffer()
         }
       }
     } while (mm_remaining > prep.mm_complete); // **Complete** Exit loop. Profile complete.
-
-
     /* -----------------------------------------------------------------------------------
       Compute spindle speed PWM output for step segment
     */
-    
     if (st_prep_block->is_pwm_rate_adjusted || (sys.step_control & STEP_CONTROL_UPDATE_SPINDLE_PWM)) {
       if (pl_block->condition & (PL_COND_FLAG_SPINDLE_CW | PL_COND_FLAG_SPINDLE_CCW)) {
         float rpm = pl_block->spindle_speed;
@@ -1164,8 +1160,6 @@ void st_prep_buffer()
       bit_false(sys.step_control,STEP_CONTROL_UPDATE_SPINDLE_PWM);
     }
     prep_segment->spindle_pwm = prep.current_spindle_pwm; // Reload segment PWM value
-
-    
     /* -----------------------------------------------------------------------------------
        Compute segment step rate, steps to execute, and apply necessary rate corrections.
        NOTE: Steps are computed by direct scalar conversion of the millimeter distance
@@ -1209,7 +1203,11 @@ void st_prep_buffer()
     #ifdef MASLOWCNC
         uint32_t cycles = ceil( (1000000 * 60) * inv_rate ); // (cycles/step) // in uS -- LDO
     #else
-      uint32_t cycles = ceil( (TICKS_PER_MICROSECOND*1000000*60)*inv_rate ); // (cycles/step)
+      #ifdef MASLOW_MEGA_CNC
+        uint32_t cycles = ceil( (1000000 * 60) * inv_rate ); // (cycles/step) // in uS -- LDO
+      #else
+          uint32_t cycles = ceil( (TICKS_PER_MICROSECOND*1000000*60)*inv_rate ); // (cycles/step)
+      #endif
     #endif
 
     #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
@@ -1224,12 +1222,14 @@ void st_prep_buffer()
         prep_segment->n_step <<= prep_segment->amass_level;
       }
       #ifndef MASLOWCNC
-        if (cycles < (1UL << 16)) { prep_segment->cycles_per_tick = cycles; } // < 65536 (4.1ms @ 16MHz)
-        else { prep_segment->cycles_per_tick = 0xffff; } // Just set the slowest speed possible.
+        #ifndef MASLOW_MEGA_CNC
+          if (cycles < (1UL << 16)) { prep_segment->cycles_per_tick = cycles; } // < 65536 (4.1ms @ 16MHz)
+          else { prep_segment->cycles_per_tick = 0xffff; } // Just set the slowest speed possible.
+        #else
+          prep_segment->cycles_per_tick = cycles;  // use the BIG number // LDO
       #else
         prep_segment->cycles_per_tick = cycles;  // use the BIG number // LDO
       #endif
-
     #else
       // Compute step timing and timer prescalar for normal step generation.
       if (cycles < (1UL << 16)) { // < 65536  (4.1ms @ 16MHz)
@@ -1247,16 +1247,13 @@ void st_prep_buffer()
         }
       }
     #endif
-
     // Segment complete! Increment segment buffer indices, so stepper ISR can immediately execute it.
     segment_buffer_head = segment_next_head;
     if ( ++segment_next_head == SEGMENT_BUFFER_SIZE ) { segment_next_head = 0; }
-
     // Update the appropriate planner and segment data.
     pl_block->millimeters = mm_remaining;
     prep.steps_remaining = n_steps_remaining;
     prep.dt_remainder = (n_steps_remaining - step_dist_remaining)*inv_rate;
-
     // Check for exit conditions and flag to load next planner block.
     if (mm_remaining == prep.mm_complete) {
       // End of planner block or forced-termination. No more distance to be executed.
@@ -1279,17 +1276,13 @@ void st_prep_buffer()
         plan_discard_current_block();
       }
     }
-
   }
 }
-
-
 // Called by realtime status reporting to fetch the current speed being executed. This value
 // however is not exactly the current speed, but the speed computed in the last step segment
 // in the segment buffer. It will always be behind by up to the number of segment blocks (-1)
 // divided by the ACCELERATION TICKS PER SECOND in seconds.
-float st_get_realtime_rate()
-{
+float st_get_realtime_rate(){
   if (sys.state & (STATE_CYCLE | STATE_HOMING | STATE_HOLD | STATE_JOG | STATE_SAFETY_DOOR)){
     return prep.current_speed;
   }

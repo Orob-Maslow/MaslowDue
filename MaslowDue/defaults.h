@@ -127,7 +127,103 @@
   #define default_SimpleKinematics    (0)
 
 #endif
+#ifdef DEFAULTS_MASLOW_MEGA_CNC
 
+  #include "MaslowMega.h"
+  // Grbl-Maslow default settings. Will require modification for each specific machine
+  // but the values below are for the MaslowCNC kit motors and a z-axis kit w/ a Meticulous-Z sled setup.
+
+  #define DEFAULT_X_STEPS_PER_MM (8113.7/63.5)	// 8113.7 ppr & 63.5mm/rev
+  #define DEFAULT_Y_STEPS_PER_MM (8113.7/63.5)	// 8113.7 ppr & 63.5mm/rev
+  #define DEFAULT_Z_STEPS_PER_MM ((168*28)/5.12)	// 168:1 gear * 28 ppr encoder / 2mm per rev
+  #define DEFAULT_X_MAX_RATE 1000.0 // mm/min
+  #define DEFAULT_Y_MAX_RATE 1000.0 // mm/min
+  #define DEFAULT_Z_MAX_RATE 250.0 // mm/min
+  #define DEFAULT_X_ACCELERATION (25.0*60*60) // 10*60*60 mm/min^2 = 10 mm/sec^2
+  #define DEFAULT_Y_ACCELERATION (25.0*60*60) // 10*60*60 mm/min^2 = 10 mm/sec^2
+  #define DEFAULT_Z_ACCELERATION (10.0*60*60) // 10*60*60 mm/min^2 = 10 mm/sec^2
+  #define DEFAULT_X_MAX_TRAVEL (96*25.4) // mm
+  #define DEFAULT_Y_MAX_TRAVEL (48*25.4) // mm
+  #define DEFAULT_Z_MAX_TRAVEL 25.0 // mm
+  #define DEFAULT_SPINDLE_RPM_MAX 24000.0 // rpm
+  #define DEFAULT_SPINDLE_RPM_MIN 4000.0 // rpm
+  #define DEFAULT_STEP_PULSE_MICROSECONDS 10
+  #define DEFAULT_STEPPING_INVERT_MASK 0
+  #define DEFAULT_DIRECTION_INVERT_MASK 0
+  #define DEFAULT_STEPPER_IDLE_LOCK_TIME 25 // msec (0-254, 255 keeps steppers enabled)
+  #define DEFAULT_STATUS_REPORT_MASK 1
+  #define DEFAULT_JUNCTION_DEVIATION 0.01 // mm
+  #define DEFAULT_ARC_TOLERANCE 0.002 // mm
+  #define DEFAULT_REPORT_INCHES 0 // false
+  #define DEFAULT_INVERT_ST_ENABLE 0 // false
+  #define DEFAULT_INVERT_LIMIT_PINS 0 // false
+  #define DEFAULT_SOFT_LIMIT_ENABLE 1 // false
+  #define DEFAULT_HARD_LIMIT_ENABLE 0  // false
+  #define DEFAULT_INVERT_PROBE_PIN 0 // false
+  #define DEFAULT_LASER_MODE 0 // false
+  #define DEFAULT_HOMING_ENABLE 1  // true
+  #define DEFAULT_HOMING_DIR_MASK 0 // move positive dir
+  #define DEFAULT_HOMING_FEED_RATE 250.0 // mm/min
+  #define DEFAULT_HOMING_SEEK_RATE 500.0 // mm/min
+  #define DEFAULT_HOMING_DEBOUNCE_DELAY 250 // msec (0-65k)
+  #define DEFAULT_HOMING_PULLOFF 1.0 // mm
+
+  // PID position loop factors              X: Kp = 25000 Ki = 15000 Kd = 22000 Imax = 5000
+  // 14.000 fixed point arithmatic S13.10
+  #ifdef DRIVER_TLE5206
+    #define default_xKp     (10.000*1024)
+    #define default_xKi     (21.000*1024)
+    #define default_xImax   (5000)
+    #define default_xKd     (18.000*1024)
+
+    #define default_yKp     (10.000*1024)
+    #define default_yKi     (21.000*1024)
+    #define default_yImax   (5000)
+    #define default_yKd     (18.000*1024)
+
+    #define default_zKp     (10.000*1024)
+    #define default_zKi     (21.000*1024)
+    #define default_zImax   (5000)
+    #define default_zKd     (17.000*1024)
+  #else
+    #define default_xKp     (22.000*1024)
+    #define default_xKi     (17.000*1024)
+    #define default_xImax   (5000)
+    #define default_xKd     (20.000*1024)
+
+    #define default_yKp     (22.000*1024)
+    #define default_yKi     (17.000*1024)
+    #define default_yImax   (5000)
+    #define default_yKd     (20.000*1024)
+
+    #define default_zKp     (20.000*1024)
+    #define default_zKi     (17.000*1024)
+    #define default_zImax   (5000)
+    #define default_zKd     (18.000*1024)
+  #endif
+
+  #define default_machineWidth        DEFAULT_X_MAX_TRAVEL
+  #define default_machineHeight       DEFAULT_Y_MAX_TRAVEL
+  #define default_distBetweenMotors   (2978.4)
+  #define default_motorOffsetY        (463)
+  #define default_chainLength         (3360)
+  #define default_chainOverSprocket   (2)
+  #define default_chainSagCorrection  (0)
+  #define default_leftChainTolerance  (0)
+  #define default_rightChainTolerance (0)
+  #define default_rotationDiskRadius  (139.1)
+  #define default_chainElongationFactor (5.1685e-6)
+  #define default_sledHeight          (139)
+  #define default_sledWidth           (310)
+  #define default_SledWeight          (97.9)
+  #define default_XcorrScaling        (1.003922) // Simple kinematics only
+  #define default_YcorrScaling        (1.002611) // " " "
+  #define default_ZTravelMin          (0.5*25.4)
+  #define default_HomeChainLengths    (1790) // With the other default settings, this is 0,0
+
+  #define default_SimpleKinematics    (0)
+
+#endif
 #ifdef DEFAULTS_GENERIC
   // Grbl generic default settings. Should work across different machines.
   #define DEFAULT_X_STEPS_PER_MM 250.0
@@ -154,7 +250,7 @@
   #define DEFAULT_REPORT_INCHES 0 // false
   #define DEFAULT_INVERT_ST_ENABLE 0 // false
   #define DEFAULT_INVERT_LIMIT_PINS 0 // false
-  #define DEFAULT_SOFT_LIMIT_ENABLE 1 // false
+  #define DEFAULT_SOFT_LIMIT_ENABLE 0 // false
   #define DEFAULT_HARD_LIMIT_ENABLE 0  // false
   #define DEFAULT_INVERT_PROBE_PIN 0 // false
   #define DEFAULT_LASER_MODE 0 // false

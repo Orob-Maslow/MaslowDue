@@ -40,11 +40,12 @@ static void sleep_enable() {
 } 
 
 
-// Disable sleep timer.
+// Disable sleep timer.  
 static void sleep_disable() {  
   #ifndef MASLOWCNC
     TIMSK3 &= ~(1<<TOIE3); 
   #endif
+  // not adding mega timer here because no due timer available in the mega... TODO?
 } // Disable timer overflow interrupt
 
 

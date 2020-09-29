@@ -23,6 +23,8 @@
 
 #include "grbl.h"
 #include "MaslowDue.h"
+#include "MaslowMega.h"
+
 
 // Homing axis search distance multiplier. Computed by this value times the cycle travel.
 #ifndef HOMING_AXIS_SEARCH_SCALAR
@@ -35,6 +37,7 @@
 void limits_init()
 {
   #ifndef MASLOWCNC
+  #ifndef MASLOW_MEGA_CNC
 
     #ifdef DEFAULTS_RAMPS_BOARD
       // Set as input pins
@@ -95,6 +98,7 @@ void limits_init()
         WDTCSR = (1<<WDP0); // Set time-out at ~32msec.
       #endif
     #endif // DEFAULTS_RAMPS_BOARD
+    #endif
   #endif
 }
 
@@ -102,6 +106,7 @@ void limits_init()
 void limits_disable()
 {
   #ifndef MASLOWCNC
+  #ifndef MASLOW_MEGA_CNC
     #ifdef DEFAULTS_RAMPS_BOARD
       #ifndef DISABLE_HW_LIMITS
       LIMIT_PCMSK &= ~LIMIT_MASK;  // Disable specific pins of the Pin Change Interrupt
@@ -111,6 +116,7 @@ void limits_disable()
       LIMIT_PCMSK &= ~LIMIT_MASK;  // Disable specific pins of the Pin Change Interrupt
       PCICR &= ~(1 << LIMIT_INT);  // Disable Pin Change Interrupt
     #endif // DEFAULTS_RAMPS_BOARD
+    #endif
   #endif
 }
 
@@ -129,6 +135,7 @@ uint8_t limits_get_state()
   uint8_t limit_state = 0;
 
   #ifndef MASLOWCNC
+  #ifndef MASLOW_MEGA_CNC
 
     #ifdef DEFAULTS_RAMPS_BOARD
       uint8_t pin;
@@ -170,9 +177,11 @@ uint8_t limits_get_state()
       return(limit_state);
     #endif //DEFAULTS_RAMPS_BOARD
   #endif
+  #endif
 }
 
 #ifndef MASLOWCNC
+#ifndef MASLOW_MEGA_CNC
   #ifdef DEFAULTS_RAMPS_BOARD
     #ifndef DISABLE_HW_LIMITS
       #error "HW limits are not implemented"
@@ -247,6 +256,7 @@ uint8_t limits_get_state()
     }
   #endif // DEFAULTS_RAMPS_BOARD
 #endif
+#endif
 
 
 // Homes the specified cycle axes, sets the machine position, and performs a pull-off motion after
@@ -275,6 +285,7 @@ void limits_go_home(uint8_t cycle_mask)
   uint8_t idx;
 
   #ifndef MASLOWCNC
+   #ifndef MASLOW_MEGA_CNC
     for (idx=0; idx<N_AXIS; idx++) {
       // Initialize step pin masks
       step_pin[idx] = get_step_pin_mask(idx);
@@ -514,6 +525,11 @@ void limits_go_home(uint8_t cycle_mask)
         }
       } while (n_cycle-- > 0);
     #endif // DEFAULTS_RAMPS_BOARD
+   #else
+        // coordinate conversion for Maslow configuration
+        system_convert_array_steps_to_mpos(target,sys_position);
+   #endif
+
   #else
         // coordinate conversion for Maslow configuration
         system_convert_array_steps_to_mpos(target,sys_position);
@@ -559,6 +575,39 @@ void limits_go_home(uint8_t cycle_mask)
 
       store_current_machine_pos();    // reset all the way out to stored space
   #else
+     #ifdef MASLOW_MEGA_CNC
+      void positionToChain(float ,float , float* , float* );
+
+      bool xAxis = cycle_mask & bit(X_AXIS);
+      bool yAxis = cycle_mask & bit(Y_AXIS);
+      bool zAxis = cycle_mask & bit(Z_AXIS);
+      if (xAxis) {
+        x_axis.axis_Position = 0;
+        x_axis.target = 0;
+        x_axis.target_PS = 0;
+        x_axis.Integral = 0;
+      }
+      if (yAxis) {
+        y_axis.axis_Position = 0;
+        y_axis.target = 0;
+        y_axis.target_PS = 0;
+        y_axis.Integral = 0;
+      }
+      if (xAxis || yAxis) {
+        // Maslow MUST home the x & y at the same time; homing is actually just resetting chain lengths to the stored value.
+        sys_position[LEFT_MOTOR] = (int32_t) lround(settings.homeChainLengths * settings.steps_per_mm[LEFT_MOTOR]);
+        sys_position[RIGHT_MOTOR] = (int32_t) lround(settings.homeChainLengths * settings.steps_per_mm[RIGHT_MOTOR]);
+      }
+      if (zAxis) {
+        z_axis.axis_Position = 0;
+        z_axis.target = 0;
+        z_axis.target_PS = 0;
+        z_axis.Integral = 0;
+        sys_position[Z_AXIS] = 0;
+      }
+
+      store_current_machine_pos();    // reset all the way out to stored space
+    #else
       int32_t set_axis_position;
       // Set machine positions for homed limit switches. Don't update non-homed axes.
       for (idx=0; idx<N_AXIS; idx++) {
@@ -592,6 +641,7 @@ void limits_go_home(uint8_t cycle_mask)
 
         }
       }
+    #endif
   #endif
   sys.step_control = STEP_CONTROL_NORMAL_OP; // Return step control to normal operation.
 }

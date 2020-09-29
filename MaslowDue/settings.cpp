@@ -26,7 +26,9 @@
 #ifdef MASLOWCNC
   #include "MaslowDue.h"
 #endif
-
+ifdef MASLOW_MEGA_CNC
+  #include "MaslowMega.h"
+#endif
 settings_t settings;
 
 #ifdef MASLOWCNC
@@ -101,7 +103,77 @@ settings_t settings;
     .homeChainLengths = default_HomeChainLengths };
 
 #else
+  #ifdef MASLOW_MEGA_CNC
+  const settings_t defaults = {
 
+    .steps_per_mm = {DEFAULT_X_STEPS_PER_MM,DEFAULT_Y_STEPS_PER_MM,DEFAULT_Z_STEPS_PER_MM},
+    .max_rate = {DEFAULT_X_MAX_RATE, DEFAULT_Y_MAX_RATE, DEFAULT_Z_MAX_RATE},
+    .acceleration = {DEFAULT_X_ACCELERATION, DEFAULT_Y_ACCELERATION, DEFAULT_Z_ACCELERATION},
+    .max_travel = {(-DEFAULT_X_MAX_TRAVEL), (-DEFAULT_Y_MAX_TRAVEL), (-DEFAULT_Z_MAX_TRAVEL)},
+
+    .pulse_microseconds = DEFAULT_STEP_PULSE_MICROSECONDS,
+    .step_invert_mask = DEFAULT_STEPPING_INVERT_MASK,
+    .dir_invert_mask = DEFAULT_DIRECTION_INVERT_MASK,
+    .stepper_idle_lock_time = DEFAULT_STEPPER_IDLE_LOCK_TIME,
+    .status_report_mask = DEFAULT_STATUS_REPORT_MASK,
+    .junction_deviation = DEFAULT_JUNCTION_DEVIATION,
+    .arc_tolerance = DEFAULT_ARC_TOLERANCE,
+    .rpm_max = DEFAULT_SPINDLE_RPM_MAX,
+    .rpm_min = DEFAULT_SPINDLE_RPM_MIN,
+    .flags = (DEFAULT_REPORT_INCHES << BIT_REPORT_INCHES) | \
+             (DEFAULT_LASER_MODE << BIT_LASER_MODE) | \
+             (DEFAULT_INVERT_ST_ENABLE << BIT_INVERT_ST_ENABLE) | \
+             (DEFAULT_HARD_LIMIT_ENABLE << BIT_HARD_LIMIT_ENABLE) | \
+             (DEFAULT_HOMING_ENABLE << BIT_HOMING_ENABLE) | \
+             (DEFAULT_SOFT_LIMIT_ENABLE << BIT_SOFT_LIMIT_ENABLE) | \
+             (DEFAULT_INVERT_LIMIT_PINS << BIT_INVERT_LIMIT_PINS) | \
+             (DEFAULT_INVERT_PROBE_PIN << BIT_INVERT_PROBE_PIN),
+
+    .homing_dir_mask = DEFAULT_HOMING_DIR_MASK,
+    .homing_feed_rate = DEFAULT_HOMING_FEED_RATE,
+    .homing_seek_rate = DEFAULT_HOMING_SEEK_RATE,
+    .homing_debounce_delay = DEFAULT_HOMING_DEBOUNCE_DELAY,
+    .homing_pulloff = DEFAULT_HOMING_PULLOFF,
+
+    .x_PID_Kp = default_xKp,
+    .x_PID_Ki = default_xKi,
+    .x_PID_Kd = default_xKd,
+    .x_PID_Imax = default_xImax,
+
+    .y_PID_Kp = default_yKp,
+    .y_PID_Ki = default_yKi,
+    .y_PID_Kd = default_yKd,
+    .y_PID_Imax = default_yImax,
+
+    .z_PID_Kp = default_zKp,
+    .z_PID_Ki = default_zKi,
+    .z_PID_Kd = default_zKd,
+    .z_PID_Imax = default_zImax,
+
+    .chainOverSprocket = default_chainOverSprocket,
+    .distBetweenMotors = default_distBetweenMotors,
+
+    .motorOffsetY = default_motorOffsetY,
+    .machineWidth = default_machineWidth,
+    .machineHeight = default_machineHeight,
+    .chainSagCorrection = default_chainSagCorrection,
+    .leftChainTolerance = default_leftChainTolerance,
+    .rightChainTolerance = default_rightChainTolerance,
+    .rotationDiskRadius = default_rotationDiskRadius,
+
+    .chainLength = default_chainLength,
+    .chainElongationFactor = default_chainElongationFactor,
+    .sledHeight = default_sledHeight,
+    .sledWidth = default_sledWidth,
+    .sledWeight = default_SledWeight,
+
+    .XcorrScaling = default_XcorrScaling,
+    .YcorrScaling = default_YcorrScaling,
+
+    .zTravelMin = default_ZTravelMin,
+    .simpleKinematics = default_SimpleKinematics,
+    .homeChainLengths = default_HomeChainLengths };
+  #else
   const __flash settings_t defaults = {\
     .pulse_microseconds = DEFAULT_STEP_PULSE_MICROSECONDS,
     .stepper_idle_lock_time = DEFAULT_STEPPER_IDLE_LOCK_TIME,
@@ -137,7 +209,7 @@ settings_t settings;
     .max_travel[X_AXIS] = (-DEFAULT_X_MAX_TRAVEL),
     .max_travel[Y_AXIS] = (-DEFAULT_Y_MAX_TRAVEL),
     .max_travel[Z_AXIS] = (-DEFAULT_Z_MAX_TRAVEL)};
-
+  #endif
 #endif
 
 
@@ -273,8 +345,10 @@ uint8_t read_global_settings() {
 // A helper method to set settings from command line
 uint8_t settings_store_global_setting(uint8_t parameter, float value) {
   #ifndef MASLOWCNC
-  // Maslow needs negative chain tolerance values.
-  if (value < 0.0) { return(STATUS_NEGATIVE_VALUE); }
+   #ifndef MASLOW_MEGA_CNC
+      // Maslow needs negative chain tolerance values.
+      if (value < 0.0) { return(STATUS_NEGATIVE_VALUE); }
+    #endif
   #endif
   if (parameter >= AXIS_SETTINGS_START_VAL) {
     // Store axis configuration. Axis numbering sequence set by AXIS_SETTING defines.
@@ -412,7 +486,43 @@ uint8_t settings_store_global_setting(uint8_t parameter, float value) {
         case GRBL_CHAIN_ELONGATION_FACTOR: settings.chainElongationFactor = (float)value; break;
         case GRBL_HOME_CHAIN_LENGTHS: settings.homeChainLengths = (uint32_t)value; break;
       #endif
+      #ifdef MASLOW_MEGA_CNC
+        case 40: settings.x_PID_Kp = (uint32_t)value; break;
+        case 41: settings.x_PID_Ki = (uint32_t)value ; break;
+        case 42: settings.x_PID_Kd = (uint32_t)value ; break;
+        case 43: settings.x_PID_Imax = (uint32_t)value ; break;
 
+        case 50: settings.y_PID_Kp = (uint32_t)value ; break;
+        case 51: settings.y_PID_Ki = (uint32_t)value ; break;
+        case 52: settings.y_PID_Kd = (uint32_t)value ; break;
+        case 53: settings.y_PID_Imax = (uint32_t)value ; break;
+
+        case 60: settings.z_PID_Kp = (uint32_t)value ; break;
+        case 61: settings.z_PID_Ki = (uint32_t)value ; break;
+        case 62: settings.z_PID_Kd = (uint32_t)value ; break;
+        case 63: settings.z_PID_Imax = (uint32_t)value ; break;
+
+        case GRBL_CHAIN_OVER_SPROCKET: settings.chainOverSprocket = (uint32_t)value ; break;
+        case GRBL_MACHINE_WIDTH: settings.machineWidth = (float)value ; break;
+        case GRBL_MACHINE_HEIGHT: settings.machineHeight = (float)value ; break;
+        case GRBL_DIST_BETWEEN_MOTORS: settings.distBetweenMotors = (float)value ; break;
+        case GRBL_MOTOR_OFFSET_Y: settings.motorOffsetY = (float)value ; break;
+
+        case GRBL_X_CORR_SCALING: settings.XcorrScaling = (float)value ; break;
+        case GRBL_Y_CORR_SCALING: settings.YcorrScaling = (float)value ; break;
+
+        case GRBL_CHAIN_SAG_CORRECTION: settings.chainSagCorrection = (float)value ; break;
+        case GRBL_LEFT_CHAIN_TOLERANCE: settings.leftChainTolerance = (float)value ; break;
+        case GRBL_RIGHT_CHAIN_TOLERANCE: settings.rightChainTolerance = (float)value ; break;
+        case GRBL_ROTATION_DISK_RADIUS: settings.rotationDiskRadius = (float)value ; break;
+
+        case GRBL_CHAIN_LENGTH: settings.chainLength = (float)value ; break;
+        case GRBL_Z_TRAVEL_MIN: settings.zTravelMin = (float)value; break;
+        case GRBL_KINEMATICS_SIMPLE: settings.simpleKinematics = int_value; break;
+        case GRBL_SLED_WEIGHT: settings.sledWeight = (float)value; break;
+        case GRBL_CHAIN_ELONGATION_FACTOR: settings.chainElongationFactor = (float)value; break;
+        case GRBL_HOME_CHAIN_LENGTHS: settings.homeChainLengths = (uint32_t)value; break;
+      #endif
       default:
         return(STATUS_INVALID_STATEMENT);
     }

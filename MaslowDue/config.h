@@ -44,12 +44,17 @@
   #define DEFAULTS_MASLOWCNC
 
 #else
-  #define DEFAULTS_GENERIC
-  #define CPU_MAP_2560_INITIAL
+  #ifdef MASLOW_MEGA_CNC
+    #define CPU_MAP_ARDUINO_MEGA
+    #define DEFAULTS_MASLOW_CLASSICCNC
+  #else
+    #define DEFAULTS_GENERIC
+    #define CPU_MAP_2560_INITIAL
 
-  // To use with RAMPS 1.4 Board, comment out the above defines and uncomment the next two defines
-  // #define DEFAULTS_RAMPS_BOARD
-  // #define CPU_MAP_2560_RAMPS_BOARD
+    // To use with RAMPS 1.4 Board, comment out the above defines and uncomment the next two defines
+    // #define DEFAULTS_RAMPS_BOARD
+    // #define CPU_MAP_2560_RAMPS_BOARD
+  #endif
 
 #endif
 
@@ -62,8 +67,14 @@
   // #define DEBUG_COM_PORT  SerialUSB
   // #define MACHINE_COM_PORT  SerialUSB
 #else
-  // #define BAUD_RATE 230400
-  #define BAUD_RATE 115200
+  #ifdef MASLOW_MEGA_CNC
+    #define BAUD_RATE 115200
+    #define DEBUG_COM_PORT  Serial
+    #define MACHINE_COM_PORT  Serial
+  #else 
+    // #define BAUD_RATE 230400
+    #define BAUD_RATE 115200
+  #endif
 #endif
 
 // Define realtime command special characters. These characters are 'picked-off' directly from the

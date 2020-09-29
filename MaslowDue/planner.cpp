@@ -25,9 +25,11 @@
 #include "grbl.h"
 
 #ifdef MASLOWCNC
-#include "MaslowDue.h"
+  #include "MaslowDue.h"
 #endif
-
+#ifdef MASLOW_MEGA_CNC
+  #include "MaslowMega.h"
+#endif
 static plan_block_t block_buffer[BLOCK_BUFFER_SIZE];  // A ring buffer for motion instructions
 static uint8_t block_buffer_tail;     // Index of the block to process now
 static uint8_t block_buffer_head;     // Index of the next block to be pushed
@@ -374,9 +376,43 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
     // Incrementally compute total move distance by Euclidean norm. First add square of each term.
     block->millimeters += delta_mm*delta_mm;
 
-  #endif
+  #else
+   #ifdef MASLOW_MEGA_CNC
+    float leftLen, rightLen;
+    // tranformation of target[X],[Y] in mm -- returns chain lengths in mm
+    positionToChain((float) (target[X_AXIS]),(float) (target[Y_AXIS]), &leftLen, &rightLen);
 
-  #ifndef MASLOWCNC
+    target_steps[LEFT_MOTOR] = (int32_t) lround(leftLen * settings.steps_per_mm[LEFT_MOTOR]);
+    block->steps[LEFT_MOTOR] = labs((target_steps[LEFT_MOTOR]-pl.position[LEFT_MOTOR]));
+    block->step_event_count = max(block->step_event_count, block->steps[LEFT_MOTOR]);
+    delta_mm = (target_steps[LEFT_MOTOR] - pl.position[LEFT_MOTOR])/settings.steps_per_mm[LEFT_MOTOR];
+    unit_vec[LEFT_MOTOR] = delta_mm; // Store unit vector numerator. Denominator computed later.
+    // Set direction bits. Bit enabled always means direction is negative.
+    if (delta_mm < 0 ) { block->direction_bits |= get_direction_pin_mask(LEFT_MOTOR); }
+    // Incrementally compute total move distance by Euclidean norm. First add square of each term.
+    block->millimeters += delta_mm*delta_mm;
+
+    target_steps[RIGHT_MOTOR] = (int32_t) lround(rightLen * settings.steps_per_mm[RIGHT_MOTOR]);
+    block->steps[RIGHT_MOTOR] = labs((target_steps[RIGHT_MOTOR]-pl.position[RIGHT_MOTOR]));
+    block->step_event_count = max(block->step_event_count, block->steps[RIGHT_MOTOR]);
+    delta_mm = (target_steps[RIGHT_MOTOR] - pl.position[RIGHT_MOTOR])/settings.steps_per_mm[RIGHT_MOTOR];
+    unit_vec[RIGHT_MOTOR] = delta_mm; // Store unit vector numerator. Denominator computed later.
+    // Set direction bits. Bit enabled always means direction is negative.
+    if (delta_mm < 0 ) { block->direction_bits |= get_direction_pin_mask(RIGHT_MOTOR); }
+    // Incrementally compute total move distance by Euclidean norm. First add square of each term.
+    block->millimeters += delta_mm*delta_mm;
+
+    target_steps[Z_AXIS] = lround(target[Z_AXIS]*settings.steps_per_mm[Z_AXIS]);
+    block->steps[Z_AXIS] = labs(target_steps[Z_AXIS]-pl.position[Z_AXIS]);
+    block->step_event_count = max(block->step_event_count, block->steps[Z_AXIS]);
+    delta_mm = (target_steps[Z_AXIS] - pl.position[Z_AXIS])/settings.steps_per_mm[Z_AXIS];
+    unit_vec[Z_AXIS] = delta_mm; // Store unit vector numerator. Denominator computed later.
+    // Set direction bits. Bit enabled always means direction is negative.
+    if (delta_mm < 0 ) { block->direction_bits |= get_direction_pin_mask(Z_AXIS); }
+    // Incrementally compute total move distance by Euclidean norm. First add square of each term.
+    block->millimeters += delta_mm*delta_mm;
+
+   #else
     for (idx=0; idx<N_AXIS; idx++) {
       // Calculate target position in absolute steps, number of steps for each axis, and determine max step events.
       // Also, compute individual axes distance for move and prep unit vector calculations.
@@ -409,6 +445,7 @@ uint8_t plan_buffer_line(float *target, plan_line_data_t *pl_data)
         if (delta_mm < 0.0 ) { block->direction_bits |= get_direction_pin_mask(idx); }
       #endif // DEFAULTS_RAMPS_BOARD
     }
+   #endif
   #endif
 
   // Bail if this is a zero-length block. Highly unlikely to occur.

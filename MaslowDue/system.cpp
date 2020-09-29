@@ -42,51 +42,70 @@
   float _xLastPosition;
   float _yLastPosition;
 #endif
+#ifdef MASLOW_MEGA_CNC
+  #include "MaslowMega.h"
 
-void system_init()
-{
+  #define KINEMATICS_MAX_GUESS  200
+  // #define KINEMATICS_DBG 1 // output to serial while computing kinematics.
+  #define KINEMATICS_MAX_ERR    0.1 // maximum error value in forward kinematics. bigger = faster.
+
+  // Main kinematics functions.
+  void  triangularInverse(float xTarget, float yTarget, float* aChainLength, float* bChainLength);
+  void  triangularForward(float chainALength, float chainBLength, float* xPos, float* yPos);
+  void  triangularSimple(float aChainLength, float bChainLength, float *x,float *y );
+  void _recomputeGeometry(void);
+
+  // Various cached pre-computed values.
+  float _sprocketRadius = 10.1f;                      //sprocket radius
+  double _xCordOfMotor;
+  double _yCordOfMotor;
+
+  // Cached between triangularForward computations to provide a good guess (performance).
+  float _xLastPosition;
+  float _yLastPosition;
+#endif
+void system_init(){
   #ifndef MASLOWCNC
-    CONTROL_DDR &= ~(CONTROL_MASK); // Configure as input pins
-    #ifdef DISABLE_CONTROL_PIN_PULL_UP
-      CONTROL_PORT &= ~(CONTROL_MASK); // Normal low operation. Requires external pull-down.
-    #else
-      CONTROL_PORT |= CONTROL_MASK;   // Enable internal pull-up resistors. Normal high operation.
+    #ifndef MASLOW_MEGA_CNC
+      CONTROL_DDR &= ~(CONTROL_MASK); // Configure as input pins
+      #ifdef DISABLE_CONTROL_PIN_PULL_UP
+        CONTROL_PORT &= ~(CONTROL_MASK); // Normal low operation. Requires external pull-down.
+      #else
+        CONTROL_PORT |= CONTROL_MASK;   // Enable internal pull-up resistors. Normal high operation.
+      #endif
+      CONTROL_PCMSK |= CONTROL_MASK;  // Enable specific pins of the Pin Change Interrupt
+      PCICR |= (1 << CONTROL_INT);   // Enable Pin Change Interrupt
     #endif
-    CONTROL_PCMSK |= CONTROL_MASK;  // Enable specific pins of the Pin Change Interrupt
-    PCICR |= (1 << CONTROL_INT);   // Enable Pin Change Interrupt
   #endif
 }
-
-
 // Returns control pin state as a uint8 bitfield. Each bit indicates the input pin state, where
 // triggered is 1 and not triggered is 0. Invert mask is applied. Bitfield organization is
 // defined by the CONTROL_PIN_INDEX in the header file.
-uint8_t system_control_get_state()
-{
+uint8_t system_control_get_state(){
     uint8_t control_state = 0;
   #ifndef MASLOWCNC
-    uint8_t pin = (CONTROL_PIN & CONTROL_MASK);
-    #ifdef INVERT_CONTROL_PIN_MASK
-      pin ^= INVERT_CONTROL_PIN_MASK;
+    #ifndef MASLOW_MEGA_CNC
+      uint8_t pin = (CONTROL_PIN & CONTROL_MASK);
+      #ifdef INVERT_CONTROL_PIN_MASK
+        pin ^= INVERT_CONTROL_PIN_MASK;
+      #endif
+      if (pin) {
+        if (bit_isfalse(pin,(1<<CONTROL_SAFETY_DOOR_BIT))) { control_state |= CONTROL_PIN_INDEX_SAFETY_DOOR; }
+        if (bit_isfalse(pin,(1<<CONTROL_RESET_BIT))) { control_state |= CONTROL_PIN_INDEX_RESET; }
+        if (bit_isfalse(pin,(1<<CONTROL_FEED_HOLD_BIT))) { control_state |= CONTROL_PIN_INDEX_FEED_HOLD; }
+        if (bit_isfalse(pin,(1<<CONTROL_CYCLE_START_BIT))) { control_state |= CONTROL_PIN_INDEX_CYCLE_START; }
+      }
     #endif
-    if (pin) {
-      if (bit_isfalse(pin,(1<<CONTROL_SAFETY_DOOR_BIT))) { control_state |= CONTROL_PIN_INDEX_SAFETY_DOOR; }
-      if (bit_isfalse(pin,(1<<CONTROL_RESET_BIT))) { control_state |= CONTROL_PIN_INDEX_RESET; }
-      if (bit_isfalse(pin,(1<<CONTROL_FEED_HOLD_BIT))) { control_state |= CONTROL_PIN_INDEX_FEED_HOLD; }
-      if (bit_isfalse(pin,(1<<CONTROL_CYCLE_START_BIT))) { control_state |= CONTROL_PIN_INDEX_CYCLE_START; }
-    }
   #endif
   return(control_state);
 }
-
-
 // Pin change interrupt for pin-out commands, i.e. cycle start, feed hold, and reset. Sets
 // only the realtime command execute variable to have the main program execute these when
 // its ready. This works exactly like the character-based realtime commands when picked off
 // directly from the incoming serial data stream.
 #ifndef MASLOWCNC
-ISR(CONTROL_INT_vect)
-{
+  #ifndef MASLOW_MEGA_CNC
+ISR(CONTROL_INT_vect){
   uint8_t pin = system_control_get_state();
   if (pin) {
     if (bit_istrue(pin,CONTROL_PIN_INDEX_RESET)) {
@@ -100,7 +119,9 @@ ISR(CONTROL_INT_vect)
     }
   }
 }
+  #endif
 #endif
+
 
 // Returns if safety door is ajar(T) or closed(F), based on pin state.
 uint8_t system_check_safety_door_ajar()
@@ -108,10 +129,11 @@ uint8_t system_check_safety_door_ajar()
   #ifdef MASLOWCNC
     return 0;   // no door on my Maslow..
   #endif
+  #ifdef MASLOW_MEGA_CNC
+    return 0;   // no door on my Maslow..
+  #endif
     return(system_control_get_state() & CONTROL_PIN_INDEX_SAFETY_DOOR);
 }
-
-
 // Executes user startup script, if stored.
 void system_execute_startup(char *line)
 {
@@ -128,8 +150,6 @@ void system_execute_startup(char *line)
     }
   }
 }
-
-
 // Directs and executes one line of formatted input from protocol_process. While mostly
 // incoming streaming g-code blocks, this also executes Grbl internal commands, such as
 // settings, initiating the homing cycle, and toggling switch states. This differs from
@@ -196,6 +216,12 @@ uint8_t system_execute_line(char *line)
             EEPROM_viewer();
             break;
         #endif
+        #ifdef MASLOW_MEGA_CNC
+          case '|':
+            // EEPROM diagnostic Viewer
+            EEPROM_viewer();
+            break;
+        #endif
         case '#' : // Print Grbl NGC parameters
           if ( line[2] != 0 ) { return(STATUS_INVALID_STATEMENT); }
           else { report_ngc_parameters(); }
@@ -226,7 +252,10 @@ uint8_t system_execute_line(char *line)
           if ((line[2] != 'L') || (line[3] != 'P') || (line[4] != 0)) { return(STATUS_INVALID_STATEMENT); }
           system_set_exec_state_flag(EXEC_SLEEP); // Set to execute sleep mode immediately
           #ifdef MASLOWCNC
-          motorsDisabled();
+            motorsDisabled();
+          #endif
+          #ifdef MASLOW_MEGA_CNC
+            motorsDisabled();
           #endif
           break;
         case 'I' : // Print or store build info. [IDLE/ALARM]
@@ -303,22 +332,17 @@ uint8_t system_execute_line(char *line)
   return(STATUS_OK); // If '$' command makes it to here, then everything's ok.
 }
 
-
-
-void system_flag_wco_change()
-{
+void system_flag_wco_change(){
   #ifdef FORCE_BUFFER_SYNC_DURING_WCO_CHANGE
     protocol_buffer_synchronize();
   #endif
   sys.report_wco_counter = 0;
 }
 
-
 // Returns machine position of axis 'idx'. Must be sent a 'step' array.
 // NOTE: If motor steps and machine position are not in the same coordinate frame, this function
 //   serves as a central place to compute the transformation.
-float system_convert_axis_steps_to_mpos(int32_t *steps, uint8_t idx)
-{
+float system_convert_axis_steps_to_mpos(int32_t *steps, uint8_t idx){
   float pos;
   #ifdef COREXY
     if (idx==X_AXIS) {
@@ -334,9 +358,7 @@ float system_convert_axis_steps_to_mpos(int32_t *steps, uint8_t idx)
   return(pos);
 }
 
-
-void system_convert_array_steps_to_mpos(float *position, int32_t *steps)
-{
+void system_convert_array_steps_to_mpos(float *position, int32_t *steps){
   #ifdef MASLOWCNC
     // Optimization: do not call system_convert_maslow_to_xy_steps multiple times in a loop!
     int32_t x_steps, y_steps;
@@ -345,31 +367,35 @@ void system_convert_array_steps_to_mpos(float *position, int32_t *steps)
     position[Y_AXIS] = (float)y_steps / settings.steps_per_mm[RIGHT_MOTOR];
     position[Z_AXIS] = (float)steps[Z_AXIS] / settings.steps_per_mm[Z_AXIS];
   #else
-    uint8_t idx;
-    for (idx=0; idx<N_AXIS; idx++) {
-      position[idx] = system_convert_axis_steps_to_mpos(steps, idx);
-    }
+    #ifdef MASLOWCNC
+      // Optimization: do not call system_convert_maslow_to_xy_steps multiple times in a loop!
+      int32_t x_steps, y_steps;
+      system_convert_maslow_to_xy_steps(steps, &x_steps, &y_steps);
+      position[X_AXIS] = (float)x_steps / settings.steps_per_mm[LEFT_MOTOR];
+      position[Y_AXIS] = (float)y_steps / settings.steps_per_mm[RIGHT_MOTOR];
+      position[Z_AXIS] = (float)steps[Z_AXIS] / settings.steps_per_mm[Z_AXIS];
+    #else
+      uint8_t idx;
+      for (idx=0; idx<N_AXIS; idx++) {
+        position[idx] = system_convert_axis_steps_to_mpos(steps, idx);
+      }
+    #endif
   #endif
   return;
 }
 
-
 // CoreXY calculation only. Returns x or y-axis "steps" based on CoreXY motor steps.
 #ifdef COREXY
-  int32_t system_convert_corexy_to_x_axis_steps(int32_t *steps)
-  {
+  int32_t system_convert_corexy_to_x_axis_steps(int32_t *steps){
     return( (steps[A_MOTOR] + steps[B_MOTOR])/2 );
   }
-  int32_t system_convert_corexy_to_y_axis_steps(int32_t *steps)
-  {
+  int32_t system_convert_corexy_to_y_axis_steps(int32_t *steps){
     return( (steps[A_MOTOR] - steps[B_MOTOR])/2 );
   }
 #endif
 
-
 // Checks and reports if target array exceeds machine travel limits.
-uint8_t system_check_travel_limits(float *target)
-{
+uint8_t system_check_travel_limits(float *target){
   uint8_t idx;
   for (idx=0; idx<N_AXIS; idx++) {
     #ifdef HOMING_FORCE_SET_ORIGIN
@@ -380,7 +406,17 @@ uint8_t system_check_travel_limits(float *target)
       } else {
         if (target[idx] > 0 || target[idx] < settings.max_travel[idx]) { return(true); }
       }
-    #elif defined(MASLOWCNC)
+    #elif defined(MASLOWCNC) || defined (MASLOW_MEGA_CNC)
+      if (idx == Z_AXIS) {
+        // Maslow has a min Z setting in addition to the max Z.
+        // Max travel is stored negative, so no need for inverting sign.
+        if (target[idx] > settings.zTravelMin || target[idx] < settings.max_travel[idx]) { return(true); }
+      } else {
+        // Maslow homes at the center of the stock. The max travel setting refers to total size.
+        float ht = settings.max_travel[idx] / -2.0f;
+        if (target[idx] < -ht || target[idx] > ht) { return(true); }
+      }
+    #elif defined(MASLOW_MEGA_CNC)
       if (idx == Z_AXIS) {
         // Maslow has a min Z setting in addition to the max Z.
         // Max travel is stored negative, so no need for inverting sign.
@@ -399,11 +435,9 @@ uint8_t system_check_travel_limits(float *target)
 }
 
 
-#ifdef MASLOWCNC
-
+#if defined(MASLOWCNC) || defined(MASLOW_MEGA_CNC)
   void  chainToPosition(float aChainLength, float bChainLength, float *x,float *y ) {
     _recomputeGeometry();
-
     #if defined (KINEMATICS_DBG) && KINEMATICS_DBG > 0
       Serial.print(F("Message: chainToPosition(), chainLength: "));
       Serial.print(aChainLength);
@@ -414,30 +448,25 @@ uint8_t system_check_travel_limits(float *target)
       Serial.print(',');
       Serial.println(*y);
     #endif
-
     if (settings.simpleKinematics) {
       return triangularSimple(aChainLength, bChainLength, x, y);
     } else {
       return triangularForward(aChainLength, bChainLength, x, y);
     }
   }
-
   void  positionToChain(float xTarget, float yTarget, float* aChainLength, float* bChainLength) {
     _recomputeGeometry();
 
     return triangularInverse(xTarget, yTarget, aChainLength, bChainLength);
   }
-
   // recalculate machine base dimensions from settings (in mm)
-  void _recomputeGeometry(void)
-  {
+  void _recomputeGeometry(void){
       /*
       Some variables are computed on class creation for the geometry of the machine to reduce overhead,
       calling this function regenerates those values.
       */
       _xCordOfMotor = (settings.distBetweenMotors/2);
       _yCordOfMotor = ((settings.machineHeight / 2.0) + settings.motorOffsetY);
-
     #if defined (KINEMATICS_DBG) && KINEMATICS_DBG > 0
       Serial.print(F("Message: recomputeGeometry(), motor position: "));
       Serial.print(_xCordOfMotor);
@@ -635,10 +664,14 @@ uint8_t system_check_travel_limits(float *target)
 // Special handlers for setting and clearing Grbl's real-time execution flags.
 void system_set_exec_state_flag(uint8_t mask) {
   #ifndef MASLOWCNC
-    uint8_t sreg = SREG;
-    cli();
-    sys_rt_exec_state |= (mask);
-    SREG = sreg;
+    #ifndef MASLOW_MEGA_CNC
+      uint8_t sreg = SREG;
+      cli();
+      sys_rt_exec_state |= (mask);
+      SREG = sreg;
+    #else
+      sys_rt_exec_state |= (mask);
+    #endif
   #else
       sys_rt_exec_state |= (mask);
   #endif
@@ -646,10 +679,14 @@ void system_set_exec_state_flag(uint8_t mask) {
 
 void system_clear_exec_state_flag(uint8_t mask) {
   #ifndef MASLOWCNC
-    uint8_t sreg = SREG;
-    cli();
-    sys_rt_exec_state &= ~(mask);
-    SREG = sreg;
+    #ifndef MASLOW_MEGA_CNC
+      uint8_t sreg = SREG;
+      cli();
+      sys_rt_exec_state &= ~(mask);
+      SREG = sreg;
+    #else
+      sys_rt_exec_state &= ~(mask);#else
+    #endif
   #else
     sys_rt_exec_state &= ~(mask);
   #endif
@@ -657,21 +694,29 @@ void system_clear_exec_state_flag(uint8_t mask) {
 
 void system_set_exec_alarm(uint8_t code) {
   #ifndef MASLOWCNC
-    uint8_t sreg = SREG;
-    cli();
-    sys_rt_exec_alarm = code;
-    SREG = sreg;
-  #else
+    #ifndef MASLOW_MEGA_CNC
+      uint8_t sreg = SREG;
+      cli();
+      sys_rt_exec_alarm = code;
+      SREG = sreg;
+    #else
+      sys_rt_exec_alarm = code;
+    #endif
+   #else
     sys_rt_exec_alarm = code;
   #endif
 }
 
 void system_clear_exec_alarm() {
   #ifndef MASLOWCNC
-    uint8_t sreg = SREG;
-    cli();
-    sys_rt_exec_alarm = 0;
-    SREG = sreg;
+    #ifndef MASLOW_MEGA_CNC
+      uint8_t sreg = SREG;
+      cli();
+      sys_rt_exec_alarm = 0;
+      SREG = sreg;
+    #else
+      sys_rt_exec_alarm = 0;
+    #endif
   #else
     sys_rt_exec_alarm = 0;
   #endif
@@ -679,10 +724,14 @@ void system_clear_exec_alarm() {
 
 void system_set_exec_motion_override_flag(uint8_t mask) {
   #ifndef MASLOWCNC
-    uint8_t sreg = SREG;
-    cli();
-    sys_rt_exec_motion_override |= (mask);
-    SREG = sreg;
+    #ifndef MASLOW_MEGA_CNC
+      uint8_t sreg = SREG;
+      cli();
+      sys_rt_exec_motion_override |= (mask);
+      SREG = sreg;
+    #else
+      sys_rt_exec_motion_override |= (mask);
+    #endif
   #else
     sys_rt_exec_motion_override |= (mask);
   #endif
@@ -690,10 +739,14 @@ void system_set_exec_motion_override_flag(uint8_t mask) {
 
 void system_set_exec_accessory_override_flag(uint8_t mask) {
   #ifndef MASLOWCNC
-    uint8_t sreg = SREG;
-    cli();
-    sys_rt_exec_accessory_override |= (mask);
-    SREG = sreg;
+    #ifndef MASLOW_MEGA_CNC
+      uint8_t sreg = SREG;
+      cli();
+      sys_rt_exec_accessory_override |= (mask);
+      SREG = sreg;
+    #else
+      sys_rt_exec_accessory_override |= (mask);
+    #endif
   #else
     sys_rt_exec_accessory_override |= (mask);
   #endif
@@ -701,10 +754,14 @@ void system_set_exec_accessory_override_flag(uint8_t mask) {
 
 void system_clear_exec_motion_overrides() {
   #ifndef MASLOWCNC
-    uint8_t sreg = SREG;
-    cli();
-    sys_rt_exec_motion_override = 0;
-    SREG = sreg;
+    #ifndef MASLOW_MEGA_CNC
+      uint8_t sreg = SREG;
+      cli();
+      sys_rt_exec_motion_override = 0;
+      SREG = sreg;
+    #else
+      sys_rt_exec_motion_override = 0;
+    #endif
   #else
     sys_rt_exec_motion_override = 0;
   #endif
@@ -712,10 +769,14 @@ void system_clear_exec_motion_overrides() {
 
 void system_clear_exec_accessory_overrides() {
   #ifndef MASLOWCNC
-    uint8_t sreg = SREG;
-    cli();
-    sys_rt_exec_accessory_override = 0;
-    SREG = sreg;
+    #ifndef MASLOW_MEGA_CNC
+      uint8_t sreg = SREG;
+      cli();
+      sys_rt_exec_accessory_override = 0;
+      SREG = sreg;
+    #else
+      sys_rt_exec_accessory_override = 0;
+    #endif
   #else
     sys_rt_exec_accessory_override = 0;
   #endif

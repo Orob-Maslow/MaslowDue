@@ -66,7 +66,28 @@ static void report_util_setting_string(uint8_t n) {
     case GRBL_Z_TRAVEL_MIN: printPgmString(PSTR(" (Z-axis minimum travel safe distance, mm)")); break;
     case GRBL_KINEMATICS_SIMPLE: printPgmString(PSTR(" (simple kinematics on?, boolean)")); break;
     case GRBL_HOME_CHAIN_LENGTHS: printPgmString(PSTR(" (calibration chain length, mm)")); break;
+#else
+ #ifdef MASLOW_MEGA_CNC
+   case GRBL_SLED_WEIGHT: printPgmString(PSTR(" (sled weight, newtons)")); break;
+    case GRBL_CHAIN_ELONGATION_FACTOR: printPgmString(PSTR(" (chain stretch factor, mm/mm/Newton)")); break;
+    case GRBL_CHAIN_OVER_SPROCKET: printPgmString(PSTR(" (chain over sprocket?, boolean)")); break;
+    case GRBL_MACHINE_WIDTH: printPgmString(PSTR(" (machine width, mm)")); break;
+    case GRBL_MACHINE_HEIGHT: printPgmString(PSTR(" (machine height, mm)")); break;
+    case GRBL_DIST_BETWEEN_MOTORS: printPgmString(PSTR(" (motor distance, mm)")); break;
+    case GRBL_MOTOR_OFFSET_Y: printPgmString(PSTR(" (motor height, mm)")); break;
+    case GRBL_X_CORR_SCALING: printPgmString(PSTR(" (x corr scaling, percent)")); break;
+    case GRBL_Y_CORR_SCALING: printPgmString(PSTR(" (y corr scaling, percent)")); break;
+    case GRBL_CHAIN_SAG_CORRECTION: printPgmString(PSTR(" (chain sag correction, percent)")); break;
+    case GRBL_LEFT_CHAIN_TOLERANCE: printPgmString(PSTR(" (chain tolerance, left chain, percent)")); break;
+    case GRBL_RIGHT_CHAIN_TOLERANCE: printPgmString(PSTR(" (chain tolerance, right chain, percent)")); break;
+    case GRBL_ROTATION_DISK_RADIUS: printPgmString(PSTR(" (rotation radius, mm)")); break;
+    case GRBL_CHAIN_LENGTH: printPgmString(PSTR(" (full length of chain, mm)")); break;
+    case GRBL_Z_TRAVEL_MIN: printPgmString(PSTR(" (Z-axis minimum travel safe distance, mm)")); break;
+    case GRBL_KINEMATICS_SIMPLE: printPgmString(PSTR(" (simple kinematics on?, boolean)")); break;
+    case GRBL_HOME_CHAIN_LENGTHS: printPgmString(PSTR(" (calibration chain length, mm)")); break;   
+ #endif
 #endif
+    
     default: break;
   }
 }
@@ -237,7 +258,47 @@ void report_grbl_settings() {
     report_util_uint32_setting(GRBL_HOME_CHAIN_LENGTHS, settings.homeChainLengths);
 
     #endif
+#ifdef MASLOW_MEAG_CNC
+  // x-axis PID
+    report_util_uint32_setting(40,settings.x_PID_Kp );
+    report_util_uint32_setting(41,settings.x_PID_Ki );
+    report_util_uint32_setting(42,settings.x_PID_Kd );
+    report_util_uint32_setting(43,settings.x_PID_Imax );
 
+  // y-axis PID
+    report_util_uint32_setting(50,settings.y_PID_Kp );
+    report_util_uint32_setting(51,settings.y_PID_Ki );
+    report_util_uint32_setting(52,settings.y_PID_Kd );
+    report_util_uint32_setting(53,settings.y_PID_Imax );
+
+  // z-axis PID
+    report_util_uint32_setting(60,settings.z_PID_Kp );
+    report_util_uint32_setting(61,settings.z_PID_Ki );
+    report_util_uint32_setting(62,settings.z_PID_Kd );
+    report_util_uint32_setting(63,settings.z_PID_Imax );
+
+    report_util_uint32_setting(GRBL_CHAIN_OVER_SPROCKET,settings.chainOverSprocket );
+    report_util_float_setting(GRBL_MACHINE_WIDTH,settings.machineWidth,N_DECIMAL_SETTINGVALUE);
+    report_util_float_setting(GRBL_MACHINE_HEIGHT,settings.machineHeight,N_DECIMAL_SETTINGVALUE);
+    report_util_float_setting(GRBL_DIST_BETWEEN_MOTORS,settings.distBetweenMotors,N_DECIMAL_SETTINGVALUE);
+    report_util_float_setting(GRBL_MOTOR_OFFSET_Y,settings.motorOffsetY,N_DECIMAL_SETTINGVALUE);
+    report_util_float_setting(GRBL_X_CORR_SCALING,settings.XcorrScaling,N_DECIMAL_SETTINGVALUE);
+    report_util_float_setting(GRBL_Y_CORR_SCALING,settings.YcorrScaling,N_DECIMAL_SETTINGVALUE);
+
+    report_util_float_setting(GRBL_CHAIN_SAG_CORRECTION,settings.chainSagCorrection,N_DECIMAL_SETTINGVALUE);
+    report_util_float_setting(GRBL_LEFT_CHAIN_TOLERANCE,settings.leftChainTolerance,N_DECIMAL_SETTINGVALUE);
+    report_util_float_setting(GRBL_RIGHT_CHAIN_TOLERANCE,settings.rightChainTolerance,N_DECIMAL_SETTINGVALUE);
+    report_util_float_setting(GRBL_ROTATION_DISK_RADIUS,settings.rotationDiskRadius,N_DECIMAL_SETTINGVALUE);
+
+    report_util_float_setting(GRBL_CHAIN_LENGTH,settings.chainLength,N_DECIMAL_SETTINGVALUE);
+    report_util_float_setting(GRBL_Z_TRAVEL_MIN,settings.zTravelMin,N_DECIMAL_SETTINGVALUE);
+    report_util_uint8_setting(GRBL_KINEMATICS_SIMPLE,settings.simpleKinematics);
+    report_util_float_setting(GRBL_SLED_WEIGHT, settings.sledWeight, N_DECIMAL_SETTINGVALUE);
+    report_util_float_setting(GRBL_CHAIN_ELONGATION_FACTOR, settings.chainElongationFactor, 10);
+    report_util_uint32_setting(GRBL_HOME_CHAIN_LENGTHS, settings.homeChainLengths);
+
+    #endif
+  
   // Print axis settings
   uint8_t idx, set_idx;
   uint8_t val = AXIS_SETTINGS_START_VAL;

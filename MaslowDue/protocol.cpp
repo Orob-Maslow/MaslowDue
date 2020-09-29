@@ -115,8 +115,12 @@ int protocol_main_loop()
   // Primary loop! Upon a system abort, this exits back to main() to reset the system.
   // This is also where Grbl idles while waiting for something to do.
   // ---------------------------------------------------------------------------------
-  #ifndef MASLOWCNC
-  
+  #ifdef MASLOWCNC
+   uint8_t c;
+  #else
+    #ifdef MASLOW_MEGA_CNC
+     uint8_t c;
+    #else
       // Perform some machine checks to make sure everything is good to go.
       #ifdef CHECK_LIMITS_AT_INIT
         if (bit_istrue(settings.flags, BITFLAG_HARD_LIMIT_ENABLE)) {
@@ -148,10 +152,7 @@ int protocol_main_loop()
     uint8_t c;
 
     for (;;) {
-  #else
-
-        uint8_t c;
-
+    #endif
   #endif
 
     // Process one line of incoming serial data, as the data becomes available. Performs an
@@ -272,13 +273,13 @@ int protocol_main_loop()
       // Check for sleep conditions and execute auto-park, if timeout duration elapses.
       sleep_check();    
     #endif
-    return 0;   // in Maslow-Arduino configuration -- always returns to Loop();
+    return -1;   // in Maslow-Arduino configuration -- always returns to Loop();
   }
 
 #ifndef MASLOWCNC
     return; /* Never reached */
-  }
 #endif
+  }
 
 // Block until all buffered steps are executed or in a cycle state. Works with feed hold
 // during a synchronize call, if it should happen. Also, waits for clean cycle end.
@@ -289,7 +290,7 @@ void protocol_buffer_synchronize()
   do {
     protocol_execute_realtime();   // Check and execute run-time commands
     if (sys.abort) { 
-      return; 
+      return (1); 
       } // Check for system abort
   } while (plan_get_current_block() || (sys.state == STATE_CYCLE));
 }
@@ -520,6 +521,10 @@ void protocol_exec_rt_system()
       }
       #ifdef MASLOWCNC
         store_current_machine_pos(); // save resting machine position to EEPROM
+      #else
+       #ifdef MASLOW_MEGA_CNC
+        store_current_machine_pos(); // save resting machine position to EEPROM
+       #endif
       #endif
       system_clear_exec_state_flag(EXEC_CYCLE_STOP);
     }

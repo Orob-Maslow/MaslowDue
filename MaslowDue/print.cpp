@@ -37,9 +37,13 @@ void printPgmString(const char *s)
   #ifdef MASLOWCNC
       printString(s);
   #else
+   #ifdef MASLOW_MEGA_CNC
+      printString(s);
+   #else
     char c;
     while ((c = pgm_read_byte_near(s++)))
       serial_write(c);
+   #endif
   #endif
 }
 

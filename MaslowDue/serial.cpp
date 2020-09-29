@@ -51,14 +51,31 @@ volatile uint8_t serial_rx_buffer_tail = 0;
   }
 
 #else
-uint8_t serial_tx_buffer[TX_RING_BUFFER];
-uint8_t serial_tx_buffer_head = 0;
-volatile uint8_t serial_tx_buffer_tail = 0;
+  #ifdef MASLOW_MEGA_CNC
+    #include "MaslowMega.h"
 
-  void serial_reset_read_buffer()
-  {
-    serial_rx_buffer_tail = serial_rx_buffer_head;
-  }
+    void serialScanner_handler(void);
+
+    
+    void serial_reset_read_buffer() 
+    {
+      while(MACHINE_COM_PORT.available() != 0)
+        MACHINE_COM_PORT.read();
+      serial_rx_buffer_tail = serial_rx_buffer_head;
+
+      #ifdef ENABLE_XONXOFF
+        flow_ctrl = XON_SENT;
+        MACHINE_COM_PORT.write(flow_ctrl);
+      #endif
+    }
+  #else
+    uint8_t serial_tx_buffer[TX_RING_BUFFER];
+    uint8_t serial_tx_buffer_head = 0;
+    volatile uint8_t serial_tx_buffer_tail = 0;
+    void serial_reset_read_buffer(){
+      serial_rx_buffer_tail = serial_rx_buffer_head;
+    }
+    #endif
 #endif
 
 
@@ -88,9 +105,13 @@ uint8_t serial_get_tx_buffer_count()
   #ifdef MASLOWCNC
       return (TX_BUFFER_SIZE - MACHINE_COM_PORT.availableForWrite());
   #else
-    uint8_t ttail = serial_tx_buffer_tail; // Copy to limit multiple calls to volatile
-    if (serial_tx_buffer_head >= ttail) { return(serial_tx_buffer_head-ttail); }
-    return (TX_RING_BUFFER - (ttail-serial_tx_buffer_head));
+    #ifdef MASLOW_MEGA_CNC
+      return (TX_BUFFER_SIZE - MACHINE_COM_PORT.availableForWrite());
+    #else
+      uint8_t ttail = serial_tx_buffer_tail; // Copy to limit multiple calls to volatile
+      if (serial_tx_buffer_head >= ttail) { return(serial_tx_buffer_head-ttail); }
+      return (TX_RING_BUFFER - (ttail-serial_tx_buffer_head));
+    #endif
   #endif
 }
 
@@ -102,20 +123,26 @@ void serial_init()
     // defaults to 8-bit, no parity, 1 stop bit
     serial_reset_read_buffer();
   #else
-    // Set baud rate
-    #if BAUD_RATE < 57600
-      uint16_t UBRR0_value = ((F_CPU / (8L * BAUD_RATE)) - 1)/2 ;
-      UCSR0A &= ~(1 << U2X0); // baud doubler off  - Only needed on Uno XXX
-    #else
-      uint16_t UBRR0_value = ((F_CPU / (4L * BAUD_RATE)) - 1)/2;
-      UCSR0A |= (1 << U2X0);  // baud doubler on for high baud rates, i.e. 115200
-    #endif
-    UBRR0H = UBRR0_value >> 8;
-    UBRR0L = UBRR0_value;
-
-    // enable rx, tx, and interrupt on complete reception of a byte
-    UCSR0B |= (1<<RXEN0 | 1<<TXEN0 | 1<<RXCIE0);
+    #ifdef MASLOW_MEGA_CNC
+        MACHINE_COM_PORT.begin(BAUD_RATE);
     // defaults to 8-bit, no parity, 1 stop bit
+    serial_reset_read_buffer();
+    #else
+    // Set baud rate
+      #if BAUD_RATE < 57600
+        uint16_t UBRR0_value = ((F_CPU / (8L * BAUD_RATE)) - 1)/2 ;
+        UCSR0A &= ~(1 << U2X0); // baud doubler off  - Only needed on Uno XXX
+      #else
+        uint16_t UBRR0_value = ((F_CPU / (4L * BAUD_RATE)) - 1)/2;
+        UCSR0A |= (1 << U2X0);  // baud doubler on for high baud rates, i.e. 115200
+      #endif
+      UBRR0H = UBRR0_value >> 8;
+      UBRR0L = UBRR0_value;
+
+      // enable rx, tx, and interrupt on complete reception of a byte
+      UCSR0B |= (1<<RXEN0 | 1<<TXEN0 | 1<<RXCIE0);
+      // defaults to 8-bit, no parity, 1 stop bit
+    #endif
   #endif
 }
 
@@ -131,26 +158,54 @@ void serial_write(uint8_t data)
       }     
       MACHINE_COM_PORT.write(data);
   #else      
+    #ifdef MASLOW_MEGA_CNC
+      while(MACHINE_COM_PORT.availableForWrite() == 0)
+      { 
+        if (sys_rt_exec_state & EXEC_RESET) 
+          return;  // Only check for abort to avoid an endless loop.
+      }     
+      MACHINE_COM_PORT.write(data);
+    #else 
     // Calculate next head
-    uint8_t next_head = serial_tx_buffer_head + 1;
-    if (next_head == TX_RING_BUFFER) { next_head = 0; }
+      uint8_t next_head = serial_tx_buffer_head + 1;
+      if (next_head == TX_RING_BUFFER) { next_head = 0; }
 
-    // Wait until there is space in the buffer
-    while (next_head == serial_tx_buffer_tail) {
-      // TODO: Restructure st_prep_buffer() calls to be executed here during a long print.
-      if (sys_rt_exec_state & EXEC_RESET) { return; } // Only check for abort to avoid an endless loop.
-    }
+      // Wait until there is space in the buffer
+      while (next_head == serial_tx_buffer_tail) {
+        // TODO: Restructure st_prep_buffer() calls to be executed here during a long print.
+        if (sys_rt_exec_state & EXEC_RESET) { return; } // Only check for abort to avoid an endless loop.
+      }
 
-    // Store data and advance head
-    serial_tx_buffer[serial_tx_buffer_head] = data;
-    serial_tx_buffer_head = next_head;
+      // Store data and advance head
+      serial_tx_buffer[serial_tx_buffer_head] = data;
+      serial_tx_buffer_head = next_head;
 
-    // Enable Data Register Empty Interrupt to make sure tx-streaming is running
-    UCSR0B |=  (1 << UDRIE0);
+      // Enable Data Register Empty Interrupt to make sure tx-streaming is running
+      UCSR0B |=  (1 << UDRIE0);
+    #endif
   #endif
 }
 
 #ifndef MASLOWCNC
+  // Data Register Empty Interrupt handler
+  ISR(SERIAL_UDRE)
+  {
+    uint8_t tail = serial_tx_buffer_tail; // Temporary serial_tx_buffer_tail (to optimize for volatile)
+
+    // Send a byte from the buffer
+    UDR0 = serial_tx_buffer[tail];
+
+    // Update tail position
+    tail++;
+    if (tail == TX_RING_BUFFER) { tail = 0; }
+
+    serial_tx_buffer_tail = tail;
+
+    // Turn off Data Register Empty Interrupt to stop tx-streaming if this concludes the transfer
+    if (tail == serial_tx_buffer_head) { UCSR0B &= ~(1 << UDRIE0); }
+  }
+#endif
+#ifndef MASLOW_MEGA_CNC
   // Data Register Empty Interrupt handler
   ISR(SERIAL_UDRE)
   {
@@ -197,9 +252,20 @@ uint8_t serial_read() {
     
     data = MACHINE_COM_PORT.read();
 #else
-  ISR(SERIAL_RX)
- {
+  #ifdef MASLOW_MEGA_CNC
+    void serialScanner_handler(void)  // Ardino serial service requires this to be timer scanned vs char-interrupt driven
+    {                                 // its a working compromise for sure...
+        uint8_t data = 0;     
+
+        if(MACHINE_COM_PORT.available() == 0) // a little trick to make rx queing look the same
+            return;
+        
+        data = MACHINE_COM_PORT.read();
+    #else
+    ISR(SERIAL_RX)
+    {
     uint8_t data = UDR0;
+  #endif
 #endif
     uint8_t next_head;
 

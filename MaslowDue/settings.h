@@ -76,10 +76,19 @@
   #define EEPROM_ADDR_MACHINE_STATE  0x1000U
   #define EEPROM_END_ROM  0x2000U
 #else
-  #define EEPROM_ADDR_GLOBAL         1U
-  #define EEPROM_ADDR_PARAMETERS     512U
-  #define EEPROM_ADDR_STARTUP_BLOCK  768U
-  #define EEPROM_ADDR_BUILD_INFO     942U
+  #ifdef MASLOW_MEGA_CNC
+    #define EEPROM_ADDR_GLOBAL         1U
+    #define EEPROM_ADDR_PARAMETERS     0x200U
+    #define EEPROM_ADDR_STARTUP_BLOCK  0x400U
+    #define EEPROM_ADDR_BUILD_INFO     0x800U
+    #define EEPROM_ADDR_MACHINE_STATE  0x1000U
+    #define EEPROM_END_ROM  0x2000U
+  #else
+    #define EEPROM_ADDR_GLOBAL         1U
+    #define EEPROM_ADDR_PARAMETERS     512U
+    #define EEPROM_ADDR_STARTUP_BLOCK  768U
+    #define EEPROM_ADDR_BUILD_INFO     942U
+  #endif
 #endif
 
 // Define EEPROM address indexing for coordinate parameters
@@ -157,6 +166,41 @@ typedef struct {
     uint32_t homeChainLengths;
   #endif
 
+#ifdef MASLOW_MEGA_CNC
+    uint32_t x_PID_Kp;  // PID coefficients
+    uint32_t x_PID_Ki;
+    uint32_t x_PID_Kd;
+    uint32_t x_PID_Imax;
+    uint32_t y_PID_Kp;  // PID coefficients
+    uint32_t y_PID_Ki;
+    uint32_t y_PID_Kd;
+    uint32_t y_PID_Imax;
+    uint32_t z_PID_Kp;  // PID coefficients
+    uint32_t z_PID_Ki;
+    uint32_t z_PID_Kd;
+    uint32_t z_PID_Imax;
+
+    uint32_t chainOverSprocket;
+    float distBetweenMotors;
+    float motorOffsetY;
+    float machineWidth;   /* Maslow specific settings */
+    float machineHeight;
+    float chainSagCorrection;
+    float leftChainTolerance;
+    float rightChainTolerance;
+    float rotationDiskRadius;
+    float chainLength;
+    float chainElongationFactor;
+    float sledHeight;
+    float sledWidth;
+    float sledWeight;
+
+    float XcorrScaling;
+    float YcorrScaling;
+    float zTravelMin;
+    uint32_t simpleKinematics;
+    uint32_t homeChainLengths;
+  #endif
 
 } settings_t;
 extern settings_t settings;

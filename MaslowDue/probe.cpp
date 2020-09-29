@@ -31,12 +31,14 @@ uint8_t probe_invert_mask;
 void probe_init()
 {
   #ifndef MASLOWCNC
+   #ifndef MASLOW_MEGA_CNC
     PROBE_DDR &= ~(PROBE_MASK); // Configure as input pins
     #ifdef DISABLE_PROBE_PIN_PULL_UP
       PROBE_PORT &= ~(PROBE_MASK); // Normal low operation. Requires external pull-down.
     #else
       PROBE_PORT |= PROBE_MASK;    // Enable internal pull-up resistors. Normal high operation.
     #endif
+   #endif
   #endif
   probe_configure_invert_mask(false); // Initialize invert mask.
 }
@@ -58,7 +60,11 @@ uint8_t probe_get_state() {
   #ifdef MASLOWCNC
     return 0;
   #else
+   #ifdef MASLOW_MEGA_CNC
+    return 0;
+   #else
     return((PROBE_PIN & PROBE_MASK) ^ probe_invert_mask); 
+   #endif
   #endif
 }
 

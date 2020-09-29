@@ -50,7 +50,10 @@
  #define LEFT_MOTOR X_AXIS // Must be X_AXIS
  #define RIGHT_MOTOR Y_AXIS // Must be Y_AXIS
 #endif
-
+#ifdef MASLOW_MEGA_CNC
+ #define LEFT_MOTOR X_AXIS // Must be X_AXIS
+ #define RIGHT_MOTOR Y_AXIS // Must be Y_AXIS
+#endif
 // Conversions
 #define MM_PER_INCH (25.40)
 #define INCH_PER_MM (0.0393701)

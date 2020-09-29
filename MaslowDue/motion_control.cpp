@@ -24,9 +24,11 @@
 #include "grbl.h"
 
 #ifdef MASLOWCNC
-#include "MaslowDue.h"
+  #include "MaslowDue.h"
 #endif
-
+#ifdef MASLOW_MEGA_CNC
+  #inclued "MaslowMega.h"
+#endif
 
 // Execute linear motion in absolute millimeter coordinates. Feed rate given in millimeters/second
 // unless invert_feed_rate is true. Then the feed_rate means that the motion should be completed in
@@ -121,7 +123,7 @@ void mc_line(float *target, plan_line_data_t *pl_data)
               spindle_sync(PL_COND_FLAG_SPINDLE_CW, pl_data->spindle_speed);
             }
           }
-      }
+        }
       }
     }
     else
@@ -139,7 +141,74 @@ void mc_line(float *target, plan_line_data_t *pl_data)
     }
 
   #else
+   #ifdef MASLOW_MEGA_CNC
+//  MASLOW is circular in motion, so long lines must be divided up
+    float cpos[N_AXIS];
 
+    cpos[X_AXIS] = (gc_state.position[X_AXIS]); // / settings.steps_per_mm[X_AXIS]);
+    cpos[Y_AXIS] = (gc_state.position[Y_AXIS]); // / settings.steps_per_mm[Y_AXIS]);
+    cpos[Z_AXIS] = (gc_state.position[Z_AXIS]); // / settings.steps_per_mm[Z_AXIS]);
+
+    float deltax = target[X_AXIS] - cpos[X_AXIS]; // working in mm position
+    float deltay = target[Y_AXIS] - cpos[Y_AXIS];
+    float deltaz = target[Z_AXIS] - cpos[Z_AXIS];
+
+    if((abs(deltax) > (float)(0.0)) || (abs(deltay) > (float)0.0))  // don't segment z-only moves
+    {
+      float deltaLong = max( abs(deltax) , (max( abs(deltay), abs(deltaz))));
+
+      int32_t segs = (int32_t) lround(deltaLong / MAX_SEG_LENGTH_MM);
+      if(segs < 1) segs = 1;
+
+      float dx = deltax / (float)segs;
+      float dy = deltay / (float)segs;
+      float dz = deltaz / (float)segs;
+
+      // if (invert_feed_rate)
+      // {
+      //     feed_rate *= segs;
+      // } // compensate feedrate for multiple segments
+
+      while(segs-- > 0)  // break up line into short pieces
+      {
+        cpos[X_AXIS] += dx;
+        cpos[Y_AXIS] += dy;
+        cpos[Z_AXIS] += dz;
+
+        // If the buffer is full remain in this loop until there is room in the buffer.
+        do {
+          protocol_execute_realtime(); // Check for any run-time commands
+          if (sys.abort) { return; } // Bail, if system abort.
+          if ( plan_check_full_buffer() ) { protocol_auto_cycle_start(); } // Auto-cycle start when buffer is full.
+          else { break; }
+        } while (1);
+
+        // Plan and queue motion into planner buffer MAX_SEG_LENGTH_MM segments to plan buffer..
+        if (plan_buffer_line(cpos, pl_data) == PLAN_EMPTY_BLOCK) {
+          if (bit_istrue(settings.flags,BITFLAG_LASER_MODE)) {
+            // Correctly set spindle state, if there is a coincident position passed. Forces a buffer
+            // sync while in M3 laser mode only.
+            if (pl_data->condition & PL_COND_FLAG_SPINDLE_CW) {
+              spindle_sync(PL_COND_FLAG_SPINDLE_CW, pl_data->spindle_speed);
+            }
+          }
+        }
+      }
+    }
+    else
+    {
+      // Plan and queue motion into planner buffer
+      if (plan_buffer_line(target, pl_data) == PLAN_EMPTY_BLOCK) {
+        if (bit_istrue(settings.flags,BITFLAG_LASER_MODE)) {
+          // Correctly set spindle state, if there is a coincident position passed. Forces a buffer
+          // sync while in M3 laser mode only.
+          if (pl_data->condition & PL_COND_FLAG_SPINDLE_CW) {
+            spindle_sync(PL_COND_FLAG_SPINDLE_CW, pl_data->spindle_speed);
+          }
+        }
+      }
+    }
+   #else
     // Plan and queue motion into planner buffer
     if (plan_buffer_line(target, pl_data) == PLAN_EMPTY_BLOCK) {
       if (bit_istrue(settings.flags,BITFLAG_LASER_MODE)) {
@@ -150,6 +219,7 @@ void mc_line(float *target, plan_line_data_t *pl_data)
         }
       }
     }
+   #endif
   #endif
 }
 

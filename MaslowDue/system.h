@@ -190,7 +190,7 @@ void system_convert_array_steps_to_mpos(float *position, int32_t *steps);
 #endif
 
 // Maslow CNC calculation only. Returns x or y-axis "steps" based on Maslow motor steps.
-#ifdef MASLOWCNC
+#if defined(MASLOWCNC) || defined(MASLOW_MEGA_CNC)
   void system_convert_maslow_to_xy_steps(int32_t *steps, int32_t *x_steps, int32_t *y_steps);
 #endif
 
